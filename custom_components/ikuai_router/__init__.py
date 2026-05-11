@@ -9,6 +9,7 @@
 - 设备追踪器（Device Tracker）：在线用户设备追踪
 - 开关（Switch）：踢人功能
 """
+import asyncio
 import logging
 
 from homeassistant.core import HomeAssistant
@@ -60,14 +61,11 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
         "coordinator": coordinator,
     }
 
-    # 异步加载所有支持的实体平台（传感器、设备追踪器、开关等）
-    await hass.config_entries.async_forward_entry_setup(entry, [
-        "sensor",           # 系统状态传感器
-        "device_tracker",   # 在线用户设备追踪
-        "switch",           # 踢人控制开关
-        "binary_sensor"     # 防火墙状态等二进制传感器
-    ])
-
+    # 异步加载所有支持的实体平台
+    await hass.config_entries.async_forward_entry_setup(entry, "sensor")
+    await hass.config_entries.async_forward_entry_setup(entry, "device_tracker")
+    await hass.config_entries.async_forward_entry_setup(entry, "switch")
+    await hass.config_entries.async_forward_entry_setup(entry, "binary_sensor")
     return True
 
 
@@ -89,15 +87,18 @@ async def async_unload_entry(hass: HomeAssistant, entry) -> bool:
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     
     # 异步卸载所有实体平台
-    unload_ok = await hass.config_entries.async_forward_entry_unload(entry, [
-        "sensor",
-        "device_tracker", 
-        "switch",
-        "binary_sensor"
-    ])
+    unload_ok = all(
+        await asyncio.gather(
+            hass.config_entries.async_forward_entry_unload(entry, "sensor"),
+            hass.config_entries.async_forward_entry_unload(entry, "device_tracker"),
+            hass.config_entries.async_forward_entry_unload(entry, "switch"),
+            hass.config_entries.async_forward_entry_unload(entry, "binary_sensor"),
+        )
+    )
 
     # 如果所有实体都成功卸载，则从 hass.data 中移除该配置的协调器
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
 
-    return unload_ok"""
+    return unload_ok
+

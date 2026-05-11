@@ -53,12 +53,6 @@ class IkuaiOptionsFlowHandler(OptionsFlow):
     处理爱快路由器的选项配置流程
     """
 
-    def __init__(self, config_entry):
-        """
-        初始化选项流程处理器
-        """
-        self._config_entry = config_entry
-
     async def async_step_init(self, user_input=None):
         """
         处理选项步骤的表单
@@ -67,7 +61,7 @@ class IkuaiOptionsFlowHandler(OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         schema = vol.Schema({
-            vol.Optional(CONF_TOKEN, default=self._config_entry.data.get(CONF_TOKEN, "")): str
+            vol.Optional(CONF_TOKEN, default=self.config_entry.data.get(CONF_TOKEN, "")): str
         })
         
         return self.async_show_form(step_id="init", data_schema=schema)
