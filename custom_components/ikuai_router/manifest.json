@@ -1,0 +1,11 @@
+{
+  "domain": "ikuai_router",
+  "name": "iKuai Router",
+  "version": "0.1.0",
+  "documentation": "https://github.com/ikuaidev/homeassistant-ikuai-router",
+  "issue_tracker": "https://github.com/ikuaidev/homeassistant-ikuai-router/issues",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@849010500"],
+  "iot_class": "local_polling"
+}
