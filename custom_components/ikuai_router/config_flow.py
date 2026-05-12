@@ -1,6 +1,6 @@
 """Config flow for iKuai Router."""
-import logging
 
+import logging
 import voluptuous as vol
 
 from homeassistant import config_entries
