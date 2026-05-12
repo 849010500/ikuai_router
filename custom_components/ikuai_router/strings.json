@@ -2,11 +2,11 @@
   "config": {
     "step": {
       "user": {
-        "title": "iKuai Router 配置",
+        "title": "iKuai Router",
         "data": {
-          "base_url": "路由器地址",
+          "base_url": "Router URL",
           "token": "API Token",
-          "binary_path": "ikuai-cli 路径"
+          "binary_path": "ikuai-cli path"
         }
       }
     }

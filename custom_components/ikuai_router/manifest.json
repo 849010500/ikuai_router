@@ -1,12 +1,12 @@
 {
-    "domain": "ikuai_router",
-    "name": "iKuai Router",
-    "version": "0.1.8",
-    "documentation": "https://github.com/849010500/ikuai_router",
-    "issue_tracker": "https://github.com/849010500/ikuai_router/issues",
-    "dependencies": [],
-    "codeowners": ["@849010500"],
-    "iot_class": "local_polling",
-    "config_flow": true,
-    "requirements": []
+  "domain": "ikuai_router",
+  "name": "iKuai Router",
+  "version": "0.1.9",
+  "documentation": "https://github.com/849010500/ikuai_router",
+  "issue_tracker": "https://github.com/849010500/ikuai_router/issues",
+  "dependencies": [],
+  "codeowners": ["@849010500"],
+  "iot_class": "local_polling",
+  "config_flow": true,
+  "requirements": []
 }
