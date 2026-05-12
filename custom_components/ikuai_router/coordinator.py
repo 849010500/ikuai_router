@@ -3,8 +3,7 @@ import asyncio
 import json
 import logging
 import os
-from homeassistant.exceptions import UpdateFailed
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import ENV_IKUAI_CLI_BASE_URL, ENV_IKUAI_CLI_TOKEN
 
 _LOGGER = logging.getLogger(__name__)
