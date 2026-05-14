@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import ENV_IKUAI_CLI_BASE_URL, ENV_IKUAI_CLI_TOKEN
 
@@ -13,7 +14,7 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass, config_entry):
         super().__init__(
-            hass, _LOGGER, name="ikuai_router", update_interval=30,
+            hass, _LOGGER, name="ikuai_router", update_interval=timedelta(seconds=30),
             config_entry=config_entry,
         )
         self.config = config_entry.data
@@ -53,3 +54,4 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         except Exception as e:
             _LOGGER.warning("Failed to fetch users: %s", e)
         return {"system": system, "online_users": online_users, "online_count": len(online_users)}
+
