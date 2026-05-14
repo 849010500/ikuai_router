@@ -94,7 +94,7 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
 
         # Try to get online users
         try:
-            resp = await self._run_cli_command("users online --format json")
+            resp = await self._run_cli_command(CMD_ONLINE_USERS)
             _LOGGER.debug("Users response: %s", resp)
             users_data = resp.get("data", [])
             if isinstance(users_data, list):
