@@ -15,8 +15,8 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, config_entry):
         super().__init__(
             hass, _LOGGER, name="ikuai_router", update_interval=timedelta(seconds=30),
-            config_entry=config_entry,
         )
+        self.config_entry = config_entry
         self.config = config_entry.data
 
     async def _run_cli_command(self, command):
