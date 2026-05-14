@@ -6,6 +6,8 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+PLATFORMS = ["sensor", "device_tracker", "switch", "binary_sensor"]
+
 
 async def async_setup(hass: HomeAssistant, config):
     return True
@@ -20,21 +22,13 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
 
-    for platform in ["sensor", "device_tracker", "switch", "binary_sensor"]:
-        await hass.config_entries.async_forward_entry_setup(entry, platform)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry) -> bool:
-    unload_ok = all(
-        await asyncio.gather(
-            hass.config_entries.async_forward_entry_unload(entry, "sensor"),
-            hass.config_entries.async_forward_entry_unload(entry, "device_tracker"),
-            hass.config_entries.async_forward_entry_unload(entry, "switch"),
-            hass.config_entries.async_forward_entry_unload(entry, "binary_sensor"),
-        )
-    )
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok
