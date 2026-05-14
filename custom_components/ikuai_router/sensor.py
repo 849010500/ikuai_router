@@ -40,6 +40,9 @@ class CpuSensor(IkuaiSensor):
         super().__init__(coordinator, config_entry, "CPU Usage", "cpu")
 
     @property
+    def icon(self):
+        return "mdi:cpu-64-bit"
+    @property
     def state(self):
         try:
             return self.coordinator.data["system"].get("cpu_usage")
@@ -56,6 +59,9 @@ class MemorySensor(IkuaiSensor):
         super().__init__(coordinator, config_entry, "Memory Usage", "memory")
 
     @property
+    def icon(self):
+        return "mdi:memory"
+    @property
     def state(self):
         try:
             return self.coordinator.data["system"].get("mem_usage")
@@ -70,6 +76,9 @@ class MemorySensor(IkuaiSensor):
 class UptimeSensor(IkuaiSensor):
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry, "Uptime", "uptime")
+    @property
+    def icon(self):
+        return "mdi:clock-outline"
 
     @property
     def state(self):
@@ -84,6 +93,10 @@ class WanIpSensor(IkuaiSensor):
         super().__init__(coordinator, config_entry, "WAN IP", "wan_ip")
 
     @property
+    def icon(self):
+        return "mdi:ip-network"
+
+    @property
     def state(self):
         try:
             return self.coordinator.data["system"].get("wan_ip")
@@ -94,6 +107,10 @@ class WanIpSensor(IkuaiSensor):
 class OnlineUsersSensor(IkuaiSensor):
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry, "Online Users", "online_users")
+
+    @property
+    def icon(self):
+        return "mdi:account-group"
 
     @property
     def state(self):
@@ -116,3 +133,4 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         WanIpSensor(coordinator, config_entry),
         OnlineUsersSensor(coordinator, config_entry),
     ])
+
