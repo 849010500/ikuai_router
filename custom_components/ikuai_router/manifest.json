@@ -1,0 +1,15 @@
+{
+  "domain": "ikuai_router",
+  "name": "iKuai Router",
+  "version": "0.1.20",
+  "documentation": "https://github.com/849010500/ikuai_router",
+  "issue_tracker": "https://github.com/849010500/ikuai_router/issues",
+  "dependencies": [],
+  "codeowners": [
+    "@849010500"
+  ],
+  "iot_class": "local_polling",
+  "config_flow": true,
+  "requirements": [],
+  "icon": "icon.png"
+}

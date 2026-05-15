@@ -1,0 +1,14 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "iKuai Router",
+        "data": {
+          "base_url": "Router URL",
+          "token": "API Token",
+          "binary_path": "ikuai-cli path"
+        }
+      }
+    }
+  }
+}
