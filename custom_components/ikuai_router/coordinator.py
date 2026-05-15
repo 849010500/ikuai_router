@@ -85,17 +85,19 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         # Try to get system info
         try:
             resp = await self._run_cli_command("monitor system --format json")
-            _LOGGER.debug("System response: %s", resp)
+            _LOGGER.info("System response: %s", resp)  # Changed to INFO level for debugging
             system = resp.get("data", {})
             if not system:
                 _LOGGER.warning("No system data in response: %s", resp)
+            else:
+                _LOGGER.info("System data keys: %s", list(system.keys()) if isinstance(system, dict) else "Not a dict")
         except Exception as e:
-            _LOGGER.warning("Failed to fetch system info: %s", e)
+            _LOGGER.error("Failed to fetch system info: %s", e)
 
         # Try to get online users
         try:
             resp = await self._run_cli_command(CMD_ONLINE_USERS)
-            _LOGGER.debug("Users response: %s", resp)
+            _LOGGER.info("Users response: %s", resp)  # Changed to INFO level for debugging
             users_data = resp.get("data", [])
             if isinstance(users_data, list):
                 for u in users_data:
@@ -105,15 +107,22 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                             "ip": u.get("ip_addr"),
                             "mac": u.get("mac_addr"),
                             "name": u.get("username", "Unknown"),
+                            "hostname": u.get("hostname", ""),
+                            "upload_speed": u.get("upload_speed", 0),
+                            "download_speed": u.get("download_speed", 0),
+                            "upload_traffic": u.get("upload_traffic", 0),
+                            "download_traffic": u.get("download_traffic", 0),
+                            "last_active": u.get("last_active", ""),
                         })
             else:
                 _LOGGER.warning("Unexpected users data format: %s", type(users_data))
         except Exception as e:
-            _LOGGER.warning("Failed to fetch users: %s", e)
+            _LOGGER.error("Failed to fetch users: %s", e)
 
-        _LOGGER.debug("Returning data: system=%s, online_users=%d", system, len(online_users))
+        _LOGGER.info("Returning data: system keys=%s, online_users=%d", list(system.keys()) if isinstance(system, dict) else "Not a dict", len(online_users))
         return {
             "system": system,
             "online_users": online_users,
             "online_count": len(online_users)
         }
+
