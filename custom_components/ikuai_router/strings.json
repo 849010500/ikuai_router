@@ -5,8 +5,9 @@
         "title": "iKuai Router",
         "data": {
           "base_url": "Router URL",
-          "token": "API Token",
-          "binary_path": "ikuai-cli path"
+          "username": "Username",
+          "password": "Password",
+          "token": "API Token (optional)"
         }
       }
     }

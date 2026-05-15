@@ -2,14 +2,15 @@
 import logging
 import voluptuous as vol
 from homeassistant import config_entries
-from .const import DOMAIN, CONFIG_ENTRY_TITLE, CONF_BASE_URL, CONF_TOKEN, CONF_BINARY_PATH, DEFAULT_BINARY_PATH
+from .const import DOMAIN, CONFIG_ENTRY_TITLE, CONF_BASE_URL, CONF_USERNAME, CONF_PASSWORD, CONF_TOKEN
 
 _LOGGER = logging.getLogger(__name__)
 
 DATA_SCHEMA = vol.Schema({
     vol.Required(CONF_BASE_URL, default="http://192.168.1.1"): str,
-    vol.Required(CONF_TOKEN): str,
-    vol.Optional(CONF_BINARY_PATH, default=DEFAULT_BINARY_PATH): str,
+    vol.Required(CONF_USERNAME, default="admin"): str,
+    vol.Required(CONF_PASSWORD): str,
+    vol.Optional(CONF_TOKEN, default=""): str,
 })
 
 

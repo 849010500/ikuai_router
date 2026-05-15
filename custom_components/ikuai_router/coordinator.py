@@ -1,14 +1,16 @@
-"""Data coordinator for iKuai Router."""
+"""Data coordinator for iKuai Router - Direct API Version."""
 
 import asyncio
+import hashlib
 import json
 import logging
-import os
-import shutil
+import time
 from datetime import timedelta
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import ENV_IKUAI_CLI_BASE_URL, ENV_IKUAI_CLI_TOKEN, CMD_SYSTEM_MONITOR, CMD_ONLINE_USERS
+from urllib.parse import urljoin
 
+import aiohttp
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -20,109 +22,209 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         )
         self.config_entry = config_entry
         self.config = config_entry.data
-        self._binary_path = self.config.get("binary_path", "/usr/local/bin/ikuai-cli")
+        self._base_url = self.config.get("base_url", "http://192.168.1.1").rstrip("/")
+        self._username = self.config.get("username", "admin")
+        self._password = self.config.get("password", "")
+        self._token = self.config.get("token", "")
+        self._session = None
+        self._cookie = None
 
-    async def _check_binary(self):
-        """Check if the ikuai-cli binary exists and is executable."""
-        if not os.path.exists(self._binary_path):
-            _LOGGER.error("ikuai-cli binary not found at: %s", self._binary_path)
-            return False
-        if not os.access(self._binary_path, os.X_OK):
-            _LOGGER.error("ikuai-cli binary is not executable: %s", self._binary_path)
-            return False
-        return True
+    async def _get_session(self):
+        """Get or create aiohttp session."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
 
-    async def _run_cli_command(self, command):
-        """Run an ikuai-cli command."""
-        if not await self._check_binary():
-            raise UpdateFailed(f"ikuai-cli binary not found or not executable: {self._binary_path}")
+    async def _login(self):
+        """Login to iKuai router and get cookie."""
+        session = await self._get_session()
 
-        full_cmd = [self._binary_path] + command.split()
-        env = os.environ.copy()
-        env[ENV_IKUAI_CLI_BASE_URL] = self.config["base_url"]
-        env[ENV_IKUAI_CLI_TOKEN] = self.config.get("token", "")
-
-        _LOGGER.debug("Running command: %s", " ".join(full_cmd))
-
+        # Try to get salt first
         try:
-            process = await asyncio.create_subprocess_exec(
-                *full_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
-            )
-            stdout, stderr = await process.communicate()
+            url = urljoin(self._base_url, "/Action/login")
+            payload = {
+                "username": self._username,
+                "password": self._password,
+            }
 
-            _LOGGER.debug("Command output: %s", stdout.decode())
-            if stderr:
-                _LOGGER.debug("Command stderr: %s", stderr.decode())
+            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                data = await resp.json()
+                _LOGGER.debug("Login response: %s", data)
 
-            if process.returncode != 0:
-                error_msg = stderr.decode().strip()
-                _LOGGER.error("Command failed with return code %d: %s", process.returncode, error_msg)
-                raise UpdateFailed(f"CLI command failed: {error_msg}")
+                if data.get("Result") == "Success" or data.get("Status") == "Success":
+                    self._cookie = session.cookie_jar
+                    _LOGGER.info("Login successful")
+                    return True
+                else:
+                    _LOGGER.error("Login failed: %s", data)
+                    return False
+        except Exception as e:
+            _LOGGER.error("Login error: %s", e)
+            return False
 
-            output = stdout.decode().strip()
-            if not output:
-                _LOGGER.warning("Empty output from command: %s", command)
-                return {}
+    async def _api_call(self, method, action, param=None):
+        """Make API call to iKuai router."""
+        session = await self._get_session()
 
-            try:
-                return json.loads(output)
-            except json.JSONDecodeError as e:
-                _LOGGER.error("Invalid JSON output: %s, error: %s, output: %s", command, e, output[:200])
-                raise UpdateFailed(f"Invalid JSON from CLI: {e}")
+        url = urljoin(self._base_url, "/Action/call")
 
-        except FileNotFoundError:
-            _LOGGER.error("ikuai-cli binary not found: %s", self._binary_path)
-            raise UpdateFailed(f"ikuai-cli binary not found: {self._binary_path}")
-        except PermissionError:
-            _LOGGER.error("Permission denied for ikuai-cli: %s", self._binary_path)
-            raise UpdateFailed(f"Permission denied for ikuai-cli: {self._binary_path}")
+        payload = {
+            "FuncName": method,
+            "Action": action,
+            "Param": param or {},
+        }
+
+        # Add token if available
+        headers = {}
+        if self._token:
+            headers["Authorization"] = self._token
+        try:
+            async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                data = await resp.json()
+                _LOGGER.debug("API response for %s.%s: %s", method, action, data)
+                return data
+        except Exception as e:
+            _LOGGER.error("API call error for %s.%s: %s", method, action, e)
+            # Try to re-login
+            await self._login()
+            async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                return await resp.json()
+
+    async def _fetch_system_info(self):
+        """Fetch system information from router."""
+        try:
+            # Try direct API approach
+            session = await self._get_session()
+
+            # Method 1: Using /Action/call endpoint
+            url = urljoin(self._base_url, "/Action/call")
+            payload = {
+                "FuncName": "SysInfo",
+                "Action": "show",
+                "Param": {}
+            }
+
+            headers = {}
+            if self._token:
+                headers["Authorization"] = self._token
+
+            async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                data = await resp.json()
+                _LOGGER.debug("System info response: %s", data)
+
+                if isinstance(data, dict):
+                    if data.get("Result") == "Success":
+                        return data.get("Data", {})
+                    elif "data" in data:
+                        return data["data"]
+                    return data
+        except Exception as e:
+            _LOGGER.warning("Failed to fetch system info via API: %s", e)
+
+        # Fallback: try alternative endpoint
+        try:
+            url = urljoin(self._base_url, "/SysInfo")
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                return await resp.json()
+        except Exception as e:
+            _LOGGER.error("All system info fetch attempts failed: %s", e)
+            return {}
+
+    async def _fetch_online_users(self):
+        """Fetch online users from router."""
+        try:
+            session = await self._get_session()
+
+            url = urljoin(self._base_url, "/Action/call")
+            payload = {
+                "FuncName": "MonitorLanIP",
+                "Action": "show",
+                "Param": {
+                    "TYPE": "data,total",
+                    "limit": "0,100",
+                    "ORDER": "",
+                    "ORDER_BY": "ip_addr_int",
+                }
+            }
+
+            headers = {}
+            if self._token:
+                headers["Authorization"] = self._token
+
+            async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                data = await resp.json()
+                _LOGGER.debug("Online users response: %s", data)
+
+                users = []
+                if isinstance(data, dict):
+                    result = data.get("Data", data.get("data", []))
+                    if isinstance(result, dict):
+                        result = result.get("data", [])
+                    if isinstance(result, list):
+                        for u in result:
+                            if isinstance(u, dict):
+                                users.append({
+                                    "id": u.get("id", ""),
+                                    "ip": u.get("ip_addr", u.get("ip", "")),
+                                    "mac": u.get("mac_addr", u.get("mac", "")),
+                                    "name": u.get("hostname", u.get("username", "Unknown")),
+                                })
+                return users
+        except Exception as e:
+            _LOGGER.error("Failed to fetch online users: %s", e)
+            return []
 
     async def _async_update_data(self):
         """Fetch data from ikuai router."""
         system = {}
         online_users = []
 
-        # Try to get system info
+        # Get system info
         try:
-            resp = await self._run_cli_command("monitor system --format json")
-            _LOGGER.info("System response: %s", resp)  # Changed to INFO level for debugging
-            system = resp.get("data", {})
-            if not system:
-                _LOGGER.warning("No system data in response: %s", resp)
-            else:
-                _LOGGER.info("System data keys: %s", list(system.keys()) if isinstance(system, dict) else "Not a dict")
+            system = await self._fetch_system_info()
+            _LOGGER.debug("System data: %s", system)
         except Exception as e:
-            _LOGGER.error("Failed to fetch system info: %s", e)
+            _LOGGER.warning("Failed to fetch system info: %s", e)
 
-        # Try to get online users
+        # Get online users
         try:
-            resp = await self._run_cli_command(CMD_ONLINE_USERS)
-            _LOGGER.info("Users response: %s", resp)  # Changed to INFO level for debugging
-            users_data = resp.get("data", [])
-            if isinstance(users_data, list):
-                for u in users_data:
-                    if isinstance(u, dict):
-                        online_users.append({
-                            "id": u.get("id"),
-                            "ip": u.get("ip_addr"),
-                            "mac": u.get("mac_addr"),
-                            "name": u.get("username", "Unknown"),
-                            "hostname": u.get("hostname", ""),
-                            "upload_speed": u.get("upload_speed", 0),
-                            "download_speed": u.get("download_speed", 0),
-                            "upload_traffic": u.get("upload_traffic", 0),
-                            "download_traffic": u.get("download_traffic", 0),
-                            "last_active": u.get("last_active", ""),
-                        })
-            else:
-                _LOGGER.warning("Unexpected users data format: %s", type(users_data))
+            online_users = await self._fetch_online_users()
+            _LOGGER.debug("Online users count: %d", len(online_users))
         except Exception as e:
-            _LOGGER.error("Failed to fetch users: %s", e)
+            _LOGGER.warning("Failed to fetch online users: %s", e)
 
-        _LOGGER.info("Returning data: system keys=%s, online_users=%d", list(system.keys()) if isinstance(system, dict) else "Not a dict", len(online_users))
         return {
             "system": system,
             "online_users": online_users,
             "online_count": len(online_users)
         }
+
+    async def kick_device(self, ip_address):
+        """Kick a device from the network."""
+        try:
+            session = await self._get_session()
+
+            url = urljoin(self._base_url, "/Action/call")
+            payload = {
+                "FuncName": "MonitorLanIP",
+                "Action": "kick",
+                "Param": {"ip_addr": ip_address}
+            }
+
+            headers = {}
+            if self._token:
+                headers["Authorization"] = self._token
+
+            async with session.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                data = await resp.json()
+                _LOGGER.info("Kick device response: %s", data)
+                return data.get("Result") == "Success" or data.get("Status") == "Success"
+        except Exception as e:
+            _LOGGER.error("Failed to kick device %s: %s", ip_address, e)
+            return False
+
+    async def async_close(self):
+        """Close the coordinator session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
 

@@ -42,12 +42,13 @@ class IkuaiKickSwitch(SwitchEntity):
     async def async_turn_off(self, **kwargs):
         _LOGGER.info("Kicking device: %s", self._user.get("ip"))
         try:
-            await self.coordinator._run_cli_command(
-                f"users kick --ip {self._user.get('ip')} --format json"
-            )
-            self._is_on = False
-            self.async_write_ha_state()
-            await self.coordinator.async_request_refresh()
+            success = await self.coordinator.kick_device(self._user.get("ip"))
+            if success:
+                self._is_on = False
+                self.async_write_ha_state()
+                await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error("Failed to kick device: %s", self._user.get("ip"))
         except Exception as e:
             _LOGGER.error("Failed to kick device: %s", e)
 
