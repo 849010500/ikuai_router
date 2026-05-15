@@ -4,26 +4,51 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 from datetime import timedelta
+from pathlib import Path
+
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import ENV_IKUAI_CLI_BASE_URL, ENV_IKUAI_CLI_TOKEN, CMD_SYSTEM_MONITOR, CMD_ONLINE_USERS
+from .downloader import IkuaiCliDownloader
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class IkuaiDataCoordinator(DataUpdateCoordinator):
 
-    def __init__(self, hass, config_entry):
+    def __init__(self, hass: HomeAssistant, config_entry):
         super().__init__(
             hass, _LOGGER, name="ikuai_router", update_interval=timedelta(seconds=30),
         )
         self.config_entry = config_entry
         self.config = config_entry.data
-        self._binary_path = self.config.get("binary_path", "/usr/local/bin/ikuai-cli")
+
+        # Set up binary path - either custom or auto-downloaded
+        custom_binary_path = self.config.get("binary_path", "")
+        if custom_binary_path:
+            self._binary_path = custom_binary_path
+            self._downloader = None
+        else:
+            # Use auto-download
+            storage_dir = Path(hass.config.path("ikuai_router/bin"))
+            self._downloader = IkuaiCliDownloader(storage_dir)
+            self._binary_path = str(self._downloader.binary_path)
+
+    async def _ensure_binary(self):
+        """Ensure ikuai-cli binary is available, downloading if needed."""
+        if self._downloader and not self._downloader.is_installed:
+            _LOGGER.info("ikuai-cli not found, downloading...")
+            success = await self._downloader.ensure_installed()
+            if not success:
+                raise UpdateFailed("Failed to download ikuai-cli")
+            _LOGGER.info("ikuai-cli downloaded successfully")
 
     async def _check_binary(self):
         """Check if the ikuai-cli binary exists and is executable."""
+        # First ensure binary is downloaded if needed
+        await self._ensure_binary()
+
         if not os.path.exists(self._binary_path):
             _LOGGER.error("ikuai-cli binary not found at: %s", self._binary_path)
             return False
@@ -117,3 +142,14 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             "online_users": online_users,
             "online_count": len(online_users)
         }
+
+    async def kick_device(self, ip_address):
+        """Kick a device from the network."""
+        try:
+            resp = await self._run_cli_command(f"users kick --ip {ip_address} --format json")
+            _LOGGER.info("Kick device response: %s", resp)
+            return resp.get("Status") == "Success" or resp.get("Result") == "Success"
+        except Exception as e:
+            _LOGGER.error("Failed to kick device %s: %s", ip_address, e)
+            return False
+

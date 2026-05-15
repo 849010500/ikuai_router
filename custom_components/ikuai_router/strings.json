@@ -6,7 +6,7 @@
         "data": {
           "base_url": "Router URL",
           "token": "API Token",
-          "binary_path": "ikuai-cli path"
+          "binary_path": "ikuai-cli path (optional, auto-download if empty)"
         }
       }
     }
