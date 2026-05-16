@@ -123,20 +123,20 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Users response: %s", resp)
             users_data = resp.get("data", [])
             if isinstance(users_data, list):
-                for u in users_data:
-                    if isinstance(u, dict):
-                        online_users.append({
-                            "id": u.get("id"),
-                            "ip": u.get("ip_addr"),
-                            "mac": u.get("mac_addr"),
-                            "name": u.get("username", "Unknown"),
-                        })
-            else:
-                _LOGGER.warning("Unexpected users data format: %s", type(users_data))
+                            for u in users_data:
+                                if isinstance(u, dict):
+                                    online_users.append({
+                                        "id": u.get("id"),
+                                        "ip": u.get("ip_addr"),
+                                        "mac": u.get("mac_addr"),
+                                        "name": u.get("username", "Unknown"),
+                                    })
+                        else:
+                            _LOGGER.warning("Unexpected users data format: %s", type(users_data))
         except Exception as e:
             _LOGGER.warning("Failed to fetch users: %s", e)
 
-                _LOGGER.debug("Returning data: system=%s, online_users=%d", system, len(online_users))
+        _LOGGER.debug("Returning data: system=%s, online_users=%d", system, len(online_users))
         return {
             "system": system,
             "online_users": online_users,
@@ -157,12 +157,4 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         """Close any open resources."""
         # We don't need to close the HA aiohttp session
         pass
-        """Kick a device from the network."""
-        try:
-            resp = await self._run_cli_command(f"users kick --ip {ip_address} --format json")
-            _LOGGER.info("Kick device response: %s", resp)
-            return resp.get("Status") == "Success" or resp.get("Result") == "Success"
-        except Exception as e:
-            _LOGGER.error("Failed to kick device %s: %s", ip_address, e)
-            return False
 
