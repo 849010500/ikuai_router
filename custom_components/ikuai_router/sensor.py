@@ -36,7 +36,7 @@ class IkuaiSensor(CoordinatorEntity, Entity):
 
     @property
     def available(self):
-        return self.coordinator.data is not None and "system" in self.coordinator.data
+        return self.coordinator.data is not None
 
     @property
     def should_poll(self):
@@ -57,7 +57,9 @@ class CpuSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "cpu" in system:
                 cpu_list = system["cpu"]
                 if isinstance(cpu_list, list) and len(cpu_list) > 0:
@@ -94,7 +96,9 @@ class CpuTempSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "cputemp" in system:
                 temp_list = system["cputemp"]
                 if isinstance(temp_list, list) and len(temp_list) > 0:
@@ -133,7 +137,9 @@ class MemoryUsageSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "memory" in system:
                 mem = system["memory"]
                 if isinstance(mem, dict):
@@ -156,7 +162,9 @@ class MemoryUsageSensor(IkuaiSensor):
     def extra_state_attributes(self):
         """返回内存详细信息"""
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "memory" in system and isinstance(system["memory"], dict):
                 mem = system["memory"]
                 return {
@@ -205,7 +213,9 @@ class UptimeSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             uptime = system.get("uptime")
             if uptime is not None:
                 return self._format_uptime(uptime)
@@ -217,7 +227,9 @@ class UptimeSensor(IkuaiSensor):
     def extra_state_attributes(self):
         """返回原始秒数"""
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             uptime = system.get("uptime")
             if uptime is not None:
                 return {"原始秒数": int(uptime)}
@@ -240,7 +252,9 @@ class UploadSpeedSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "stream" in system:
                 stream = system["stream"]
                 upload = stream.get("upload", 0)
@@ -266,7 +280,9 @@ class DownloadSpeedSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "stream" in system:
                 stream = system["stream"]
                 download = stream.get("download", 0)
@@ -292,7 +308,9 @@ class TotalUploadSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "stream" in system:
                 stream = system["stream"]
                 total_up = stream.get("total_up", 0)
@@ -318,7 +336,9 @@ class TotalDownloadSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "stream" in system:
                 stream = system["stream"]
                 total_down = stream.get("total_down", 0)
@@ -344,7 +364,9 @@ class ConnectionCountSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "stream" in system:
                 stream = system["stream"]
                 return stream.get("connect_num", 0)
@@ -356,7 +378,9 @@ class ConnectionCountSensor(IkuaiSensor):
     def extra_state_attributes(self):
         """返回连接详情"""
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "stream" in system:
                 stream = system["stream"]
                 return {
@@ -383,7 +407,9 @@ class WanIpSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             return system.get("wan_ip") or system.get("ip_addr")
         except (KeyError, TypeError):
             return None
@@ -401,7 +427,9 @@ class WanIpv6Sensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             return system.get("wan_ipv6")
         except (KeyError, TypeError):
             return None
@@ -423,7 +451,9 @@ class OnlineUsersSensor(IkuaiSensor):
         try:
             if "online_count" in self.coordinator.data:
                 return self.coordinator.data["online_count"]
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "online_user" in system:
                 online_user = system["online_user"]
                 if isinstance(online_user, dict):
@@ -440,7 +470,9 @@ class OnlineUsersSensor(IkuaiSensor):
     def extra_state_attributes(self):
         """返回在线用户详情"""
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "online_user" in system and isinstance(system["online_user"], dict):
                 online_user = system["online_user"]
                 return {
@@ -466,7 +498,9 @@ class OnlineApSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "online_ap" in system:
                 return system["online_ap"]
             return None
@@ -492,7 +526,9 @@ class HostnameSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             return system.get("hostname", "iKuai")
         except (KeyError, TypeError):
             return None
@@ -510,7 +546,9 @@ class VersionSensor(IkuaiSensor):
     @property
     def state(self):
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "verinfo" in system:
                 verinfo = system["verinfo"]
                 return verinfo.get("version")
@@ -522,7 +560,9 @@ class VersionSensor(IkuaiSensor):
     def extra_state_attributes(self):
         """返回版本详情"""
         try:
-            system = self.coordinator.data["system"]
+            system = self.coordinator.data.get("system", {})
+            if not system:
+                return None
             if "verinfo" in system and isinstance(system["verinfo"], dict):
                 verinfo = system["verinfo"]
                 return {
