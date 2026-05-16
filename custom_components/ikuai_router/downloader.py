@@ -12,6 +12,8 @@ import zipfile
 from pathlib import Path
 
 import aiohttp
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import aiohttp_client
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +31,8 @@ CHECKSUMS = {
 class IkuaiCliDownloader:
     """Download and manage ikuai-cli binary."""
     
-    def __init__(self, storage_dir: Path):
+    def __init__(self, hass: HomeAssistant, storage_dir: Path):
+        self._hass = hass
         self._storage_dir = storage_dir
         self._binary_path = storage_dir / ("ikuai-cli.exe" if platform.system() == "Windows" else "ikuai-cli")
         self._downloading = False
@@ -111,18 +114,20 @@ class IkuaiCliDownloader:
             # Create storage directory if it doesn't exist
             self._storage_dir.mkdir(parents=True, exist_ok=True)
             
+            # Use Home Assistant's aiohttp client session
+            session = aiohttp_client.async_get_clientsession(self._hass)
+            
             # Download the archive
-            async with aiohttp.ClientSession() as session:
-                async with session.get(download_url, timeout=aiohttp.ClientTimeout(total=300)) as response:
-                    if response.status != 200:
-                        _LOGGER.error("Failed to download ikuai-cli: HTTP %d", response.status)
-                        return False
-                    
-                    # Save to temporary file
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".tmp") as tmp_file:
-                        tmp_path = Path(tmp_file.name)
-                        async for chunk in response.content.iter_chunked(8192):
-                            tmp_file.write(chunk)
+            async with session.get(download_url, timeout=aiohttp.ClientTimeout(total=300)) as response:
+                if response.status != 200:
+                    _LOGGER.error("Failed to download ikuai-cli: HTTP %d", response.status)
+                    return False
+                
+                # Save to temporary file
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".tmp") as tmp_file:
+                    tmp_path = Path(tmp_file.name)
+                    async for chunk in response.content.iter_chunked(8192):
+                        tmp_file.write(chunk)
             
             # Verify checksum
             if checksum and not self._verify_checksum(tmp_path, checksum):

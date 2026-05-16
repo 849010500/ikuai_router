@@ -32,7 +32,7 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         else:
             # Use auto-download
             storage_dir = Path(hass.config.path("ikuai_router/bin"))
-            self._downloader = IkuaiCliDownloader(storage_dir)
+            self._downloader = IkuaiCliDownloader(hass, storage_dir)
             self._binary_path = str(self._downloader.binary_path)
 
     async def _ensure_binary(self):
