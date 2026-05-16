@@ -25,7 +25,13 @@ class IkuaiDeviceTracker(ScannerEntity):
 
     @property
     def unique_id(self):
-        return f"{self.config_entry.entry_id}_tracker_{self._user.get('ip', 'unknown')}"
+        ip = self._user.get('ip') or 'unknown'
+        mac = self._user.get('mac') or ''
+        # Use MAC address if IP is not available
+        identifier = ip if ip != 'unknown' else mac
+        if not identifier:
+            identifier = id(self._user)
+        return f"{self.config_entry.entry_id}_tracker_{identifier}"
 
     @property
     def name(self):
@@ -56,3 +62,4 @@ class IkuaiDeviceTracker(ScannerEntity):
             manufacturer="iKuai",
             model="Router",
         )
+
