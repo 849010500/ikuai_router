@@ -43,7 +43,7 @@ class IkuaiKickSwitch(SwitchEntity):
         _LOGGER.info("Kicking device: %s", self._user.get("ip"))
         try:
             success = await self.coordinator.kick_device(self._user.get("ip"))
-                        if success:
+            if success:
                 self._is_on = False
                 self.async_write_ha_state()
                 await self.coordinator.async_request_refresh()
@@ -60,4 +60,3 @@ class IkuaiKickSwitch(SwitchEntity):
             manufacturer="iKuai",
             model="Router",
         )
-
