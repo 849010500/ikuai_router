@@ -125,8 +125,13 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             if isinstance(users_data, list):
                 for u in users_data:
                     if isinstance(u, dict):
+                        # 确保每个用户都有唯一标识
+                        user_id = u.get("id") or f"{u.get('ip_addr')}_{u.get('mac_addr')}"
+                        if not user_id or user_id == "_":
+                            # 如果没有唯一标识，使用索引或跳过
+                            continue
                         online_users.append({
-                            "id": u.get("id"),
+                            "id": user_id,
                             "ip": u.get("ip_addr"),
                             "mac": u.get("mac_addr"),
                             "name": u.get("username", "Unknown"),
