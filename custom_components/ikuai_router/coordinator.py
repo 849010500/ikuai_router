@@ -136,7 +136,7 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         except Exception as e:
             _LOGGER.warning("Failed to fetch users: %s", e)
 
-        _LOGGER.debug("Returning data: system=%s, online_users=%d", system, len(online_users))
+                _LOGGER.debug("Returning data: system=%s, online_users=%d", system, len(online_users))
         return {
             "system": system,
             "online_users": online_users,
@@ -144,6 +144,19 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         }
 
     async def kick_device(self, ip_address):
+        """Kick a device from the network."""
+        try:
+            resp = await self._run_cli_command(f"users kick --ip {ip_address} --format json")
+            _LOGGER.info("Kick device response: %s", resp)
+            return resp.get("Status") == "Success" or resp.get("Result") == "Success"
+        except Exception as e:
+            _LOGGER.error("Failed to kick device %s: %s", ip_address, e)
+            return False
+
+    async def async_close(self):
+        """Close any open resources."""
+        # We don't need to close the HA aiohttp session
+        pass
         """Kick a device from the network."""
         try:
             resp = await self._run_cli_command(f"users kick --ip {ip_address} --format json")
