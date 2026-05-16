@@ -43,10 +43,10 @@ class IkuaiKickSwitch(SwitchEntity):
         _LOGGER.info("Kicking device: %s", self._user.get("ip"))
         try:
             success = await self.coordinator.kick_device(self._user.get("ip"))
-            if success:
-            self._is_on = False
-            self.async_write_ha_state()
-            await self.coordinator.async_request_refresh()
+                        if success:
+                self._is_on = False
+                self.async_write_ha_state()
+                await self.coordinator.async_request_refresh()
             else:
                 _LOGGER.error("Failed to kick device: %s", self._user.get("ip"))
         except Exception as e:
