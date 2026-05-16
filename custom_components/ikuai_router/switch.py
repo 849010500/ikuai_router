@@ -1,6 +1,7 @@
 """Switch platform for iKuai Router."""
 import logging
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 
@@ -10,27 +11,34 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, config_entry, async_add_entities):
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     entities = []
+    seen_ids = set()
     for user in coordinator.data.get("online_users", []):
-        entities.append(IkuaiKickSwitch(coordinator, config_entry, user))
-    async_add_entities(entities)
+        # 生成唯一ID并检查是否已存在
+        ip = user.get('ip') or ''
+        mac = user.get('mac') or ''
+        identifier = ip or mac
+        if not identifier or identifier in seen_ids:
+            continue
+        seen_ids.add(identifier)
+        entity_id = f"{config_entry.entry_id}_kick_{identifier}"
+        if entity_id not in seen_ids:
+            entities.append(IkuaiKickSwitch(coordinator, config_entry, user))
+    async_add_entities(entities, True)
 
 
-class IkuaiKickSwitch(SwitchEntity):
+class IkuaiKickSwitch(CoordinatorEntity, SwitchEntity):
 
     def __init__(self, coordinator, config_entry, user_info):
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self.config_entry = config_entry
         self._user = user_info
         self._is_on = True
 
     @property
     def unique_id(self):
-        ip = self._user.get('ip') or 'unknown'
+        ip = self._user.get('ip') or ''
         mac = self._user.get('mac') or ''
-        # Use MAC address if IP is not available
-        identifier = ip if ip != 'unknown' else mac
-        if not identifier:
-            identifier = id(self._user)
+        identifier = ip or mac or 'unknown'
         return f"{self.config_entry.entry_id}_kick_{identifier}"
 
     @property

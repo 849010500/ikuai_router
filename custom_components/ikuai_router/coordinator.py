@@ -138,18 +138,33 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                 users_data = []
 
             if isinstance(users_data, list):
-                for u in users_data:
+                seen_ids = set()
+                for idx, u in enumerate(users_data):
                     if isinstance(u, dict):
-                        # 确保每个用户都有唯一标识
-                        user_id = u.get("id") or f"{u.get('ip_addr')}_{u.get('mac_addr')}"
-                        if not user_id or user_id == "_":
-                            # 如果没有唯一标识，使用索引或跳过
+                        # 生成稳定的用户ID
+                        mac = u.get('mac_addr', '') or ''
+                        ip = u.get('ip_addr', '') or ''
+                        username = u.get('username', '') or ''
+
+                        # 优先使用MAC地址，其次IP，再次用户名，最后索引
+                        if mac:
+                            user_id = f"mac_{mac}"
+                        elif ip:
+                            user_id = f"ip_{ip}"
+                        elif username:
+                            user_id = f"user_{username}"
+                        else:
+                            user_id = f"idx_{idx}"
+
+                        # 跳过重复的用户
+                        if user_id in seen_ids:
                             continue
+                        seen_ids.add(user_id)
                         online_users.append({
                             "id": user_id,
-                            "ip": u.get("ip_addr"),
-                            "mac": u.get("mac_addr"),
-                            "name": u.get("username", "Unknown"),
+                            "ip": ip,
+                            "mac": mac,
+                            "name": username or "Unknown",
                         })
             else:
                 _LOGGER.warning("Unexpected users data format: %s", type(users_data))

@@ -2,6 +2,7 @@
 import logging
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
 from homeassistant.components.device_tracker.const import SourceType
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 
@@ -11,26 +12,31 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, config_entry, async_add_entities):
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     entities = []
+    seen_ids = set()
     for user in coordinator.data.get("online_users", []):
+        # 生成唯一ID并检查是否已存在
+        ip = user.get('ip') or ''
+        mac = user.get('mac') or ''
+        identifier = ip or mac
+        if not identifier or identifier in seen_ids:
+            continue
+        seen_ids.add(identifier)
         entities.append(IkuaiDeviceTracker(coordinator, config_entry, user))
-    async_add_entities(entities)
+    async_add_entities(entities, True)
 
 
-class IkuaiDeviceTracker(ScannerEntity):
+class IkuaiDeviceTracker(CoordinatorEntity, ScannerEntity):
 
     def __init__(self, coordinator, config_entry, user_info):
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self.config_entry = config_entry
         self._user = user_info
 
     @property
     def unique_id(self):
-        ip = self._user.get('ip') or 'unknown'
+        ip = self._user.get('ip') or ''
         mac = self._user.get('mac') or ''
-        # Use MAC address if IP is not available
-        identifier = ip if ip != 'unknown' else mac
-        if not identifier:
-            identifier = id(self._user)
+        identifier = ip or mac or 'unknown'
         return f"{self.config_entry.entry_id}_tracker_{identifier}"
 
     @property
@@ -51,7 +57,6 @@ class IkuaiDeviceTracker(ScannerEntity):
 
     @property
     def is_connected(self):
-        # For now, assume all devices in online list are connected
         return True
 
     @property
@@ -62,4 +67,3 @@ class IkuaiDeviceTracker(ScannerEntity):
             manufacturer="iKuai",
             model="Router",
         )
-
