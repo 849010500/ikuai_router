@@ -123,16 +123,16 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Users response: %s", resp)
             users_data = resp.get("data", [])
             if isinstance(users_data, list):
-                            for u in users_data:
-                                if isinstance(u, dict):
-                                    online_users.append({
-                                        "id": u.get("id"),
-                                        "ip": u.get("ip_addr"),
-                                        "mac": u.get("mac_addr"),
-                                        "name": u.get("username", "Unknown"),
-                                    })
-                        else:
-                            _LOGGER.warning("Unexpected users data format: %s", type(users_data))
+                for u in users_data:
+                    if isinstance(u, dict):
+                        online_users.append({
+                            "id": u.get("id"),
+                            "ip": u.get("ip_addr"),
+                            "mac": u.get("mac_addr"),
+                            "name": u.get("username", "Unknown"),
+                        })
+            else:
+                _LOGGER.warning("Unexpected users data format: %s", type(users_data))
         except Exception as e:
             _LOGGER.warning("Failed to fetch users: %s", e)
 
