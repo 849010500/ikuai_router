@@ -111,7 +111,14 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         try:
             resp = await self._run_cli_command("monitor system --format json")
             _LOGGER.debug("System response: %s", resp)
-            system = resp.get("data", {})
+            # Handle both data formats: {"sysinfo": {...}} or {"data": {...}}
+            if "sysinfo" in resp:
+                system = resp["sysinfo"]
+            elif "data" in resp:
+                system = resp["data"]
+            else:
+                # If neither key exists, use the whole response
+                system = resp
             if not system:
                 _LOGGER.warning("No system data in response: %s", resp)
         except Exception as e:
@@ -121,7 +128,15 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         try:
             resp = await self._run_cli_command(CMD_ONLINE_USERS)
             _LOGGER.debug("Users response: %s", resp)
-            users_data = resp.get("data", [])
+            # Handle different data formats
+            if isinstance(resp, list):
+                users_data = resp
+            elif isinstance(resp, dict):
+                # Try different possible keys
+                users_data = resp.get("data", resp.get("users", []))
+            else:
+                users_data = []
+
             if isinstance(users_data, list):
                 for u in users_data:
                     if isinstance(u, dict):

@@ -1,7 +1,7 @@
 {
   "domain": "ikuai_router",
   "name": "iKuai Router",
-  "version": "0.1.28",
+  "version": "0.1.30",
   "documentation": "https://github.com/849010500/ikuai_router",
   "issue_tracker": "https://github.com/849010500/ikuai_router/issues",
   "dependencies": [],
