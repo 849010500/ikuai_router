@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -82,25 +83,25 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
                 _LOGGER.error("Command failed with return code %d: %s", process.returncode, error_msg)
-                raise UpdateFailed(f"CLI command failed: {error_msg}")
+                    raise UpdateFailed(f"CLI command failed: {error_msg}")
 
-            output = stdout.decode().strip()
-            if not output:
-                _LOGGER.warning("Empty output from command: %s", command)
-                return {}
+                output = stdout.decode().strip()
+                if not output:
+                    _LOGGER.warning("Empty output from command: %s", command)
+                    return {}
 
-            try:
-                return json.loads(output)
-            except json.JSONDecodeError as e:
-                _LOGGER.error("Invalid JSON output: %s, error: %s, output: %s", command, e, output[:200])
-                raise UpdateFailed(f"Invalid JSON from CLI: {e}")
+        try:
+                    return json.loads(output)
+                except json.JSONDecodeError as e:
+                    _LOGGER.error("Invalid JSON output: %s, error: %s, output: %s", command, e, output[:200])
+                    raise UpdateFailed(f"Invalid JSON from CLI: {e}")
 
-        except FileNotFoundError:
-            _LOGGER.error("ikuai-cli binary not found: %s", self._binary_path)
-            raise UpdateFailed(f"ikuai-cli binary not found: {self._binary_path}")
-        except PermissionError:
-            _LOGGER.error("Permission denied for ikuai-cli: %s", self._binary_path)
-            raise UpdateFailed(f"Permission denied for ikuai-cli: {self._binary_path}")
+            except FileNotFoundError:
+                _LOGGER.error("ikuai-cli binary not found: %s", self._binary_path)
+                raise UpdateFailed(f"ikuai-cli binary not found: {self._binary_path}")
+            except PermissionError:
+                _LOGGER.error("Permission denied for ikuai-cli: %s", self._binary_path)
+                raise UpdateFailed(f"Permission denied for ikuai-cli: {self._binary_path}")
 
     async def _async_update_data(self):
         """Fetch data from ikuai router."""
@@ -180,6 +181,10 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
 
     async def kick_device(self, ip_address):
         """Kick a device from the network."""
+        # Validate IP address format to prevent command injection
+        if not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_address):
+            _LOGGER.error("Invalid IP address format: %s", ip_address)
+            return False
         try:
             resp = await self._run_cli_command(f"users kick --ip {ip_address} --format json")
             _LOGGER.info("Kick device response: %s", resp)
