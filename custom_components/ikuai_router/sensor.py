@@ -1,4 +1,4 @@
-"""Sensor platform for iKuai Router."""
+﻿"""Sensor platform for iKuai Router."""
 import logging
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -404,7 +404,7 @@ class WanIpSensor(IkuaiSensor):
     def icon(self):
         return "mdi:ip-network"
 
-        @property
+            @property
     def state(self):
         try:
             system = self.coordinator.data.get("system", {})
@@ -438,7 +438,7 @@ class WanIpv6Sensor(IkuaiSensor):
     def icon(self):
         return "mdi:ip-network"
 
-        @property
+            @property
     def state(self):
         try:
             system = self.coordinator.data.get("system", {})
@@ -523,7 +523,7 @@ class OnlineApSensor(IkuaiSensor):
     def icon(self):
         return "mdi:router-wireless"
 
-        @property
+            @property
     def state(self):
         try:
             system = self.coordinator.data.get("system", {})

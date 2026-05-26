@@ -10,7 +10,7 @@ from pathlib import Path
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import ENV_IKUAI_CLI_BASE_URL, ENV_IKUAI_CLI_TOKEN, CMD_SYSTEM_MONITOR, CMD_ONLINE_USERS
+from .const import ENV_IKUAI_CLI_BASE_URL, ENV_IKUAI_CLI_TOKEN, CMD_SYSTEM_MONITOR, CMD_CLIENTS_ONLINE, CMD_WIRELESS_STATS, CMD_INTERFACES, CMD_INTERFACES_CONFIG
 from .downloader import IkuaiCliDownloader
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,57 +103,124 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                 _LOGGER.error("Permission denied for ikuai-cli: %s", self._binary_path)
                 raise UpdateFailed(f"Permission denied for ikuai-cli: {self._binary_path}")
 
+        def _extract_data(self, resp):
+        """Extract data from response, handling different formats."""
+        if isinstance(resp, dict):
+            for key in ['data', 'sysinfo', 'result']:
+                if key in resp:
+                    return resp[key]
+        return resp
+
     async def _async_update_data(self):
         """Fetch data from ikuai router."""
         system = {}
         online_users = []
+        wireless_info = {}
+        interfaces_info = {}
 
         # Try to get system info
         try:
-            resp = await self._run_cli_command("monitor system --format json")
+            resp = await self._run_cli_command(CMD_SYSTEM_MONITOR)
             _LOGGER.debug("System response: %s", resp)
-            # Handle both data formats: {"sysinfo": {...}} or {"data": {...}}
-            if "sysinfo" in resp:
-                system = resp["sysinfo"]
-            elif "data" in resp:
-                system = resp["data"]
-            else:
-                # If neither key exists, use the whole response
-                system = resp
+            system = self._extract_data(resp) or {}
             if not system:
                 _LOGGER.warning("No system data in response: %s", resp)
         except Exception as e:
             _LOGGER.warning("Failed to fetch system info: %s", e)
 
-        # Try to get online users
+        # Try to get interfaces info
         try:
-            resp = await self._run_cli_command(CMD_ONLINE_USERS)
-            _LOGGER.debug("Users response: %s", resp)
-            # Handle different data formats
-            if isinstance(resp, list):
-                users_data = resp
-            elif isinstance(resp, dict):
-                # Try different possible keys
-                users_data = resp.get("data", resp.get("users", []))
-            else:
-                users_data = []
+            resp = await self._run_cli_command(CMD_INTERFACES)
+            _LOGGER.debug("Interfaces response: %s", resp)
+            interfaces_info = self._extract_data(resp) or {}
+        except Exception as e:
+            _LOGGER.warning("Failed to fetch interfaces info: %s", e)
 
-            if isinstance(users_data, list):
+        # Try to get interfaces config
+        try:
+            resp = await self._run_cli_command(CMD_INTERFACES_CONFIG)
+            _LOGGER.debug("Interfaces config response: %s", resp)
+            interfaces_config = self._extract_data(resp) or {}
+            if isinstance(interfaces_config, dict):
+                interfaces_info.update(interfaces_config)
+            elif isinstance(interfaces_config, list):
+                for iface in interfaces_config:
+                    if isinstance(iface, dict):
+                        name = iface.get('name', '')
+                        if name:
+                            interfaces_info[name] = iface
+        except Exception as e:
+            _LOGGER.warning("Failed to fetch interfaces config: %s", e)
+
+        # Extract WAN IP and IPv6 from interfaces
+        if isinstance(interfaces_info, dict):
+            # Try to find WAN interface
+            for key, value in interfaces_info.items():
+                if isinstance(value, dict):
+                    iface_name = key.lower() or value.get('name', '').lower()
+                    if 'wan' in iface_name or 'pppoe' in iface_name:
+                        # IPv4
+                        ip = value.get('ip') or value.get('ip_addr') or value.get('ipv4') or value.get('address')
+                        if ip and not system.get('wan_ip'):
+                            system['wan_ip'] = ip
+                        # IPv6
+                        ipv6 = value.get('ipv6') or value.get('ip6_addr') or value.get('ipv6_addr') or value.get('address6')
+                        if ipv6 and not system.get('wan_ipv6'):
+                            system['wan_ipv6'] = ipv6
+        elif isinstance(interfaces_info, list):
+            for iface in interfaces_info:
+                if isinstance(iface, dict):
+                    iface_name = iface.get('name', '').lower()
+                    if 'wan' in iface_name or 'pppoe' in iface_name:
+                        ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4') or iface.get('address')
+                        if ip and not system.get('wan_ip'):
+                            system['wan_ip'] = ip
+                        ipv6 = iface.get('ipv6') or iface.get('ip6_addr') or iface.get('ipv6_addr') or iface.get('address6')
+                        if ipv6 and not system.get('wan_ipv6'):
+                            system['wan_ipv6'] = ipv6
+
+        # Try to get wireless stats
+        try:
+            resp = await self._run_cli_command(CMD_WIRELESS_STATS)
+            _LOGGER.debug("Wireless stats response: %s", resp)
+            wireless_info = self._extract_data(resp) or {}
+        except Exception as e:
+            _LOGGER.warning("Failed to fetch wireless stats: %s", e)
+
+        # Extract AP count from wireless info
+        if isinstance(wireless_info, dict):
+            ap_count = wireless_info.get('ap_count') or wireless_info.get('ap_online') or wireless_info.get('online_ap') or wireless_info.get('total_ap')
+            if ap_count is not None:
+                system['online_ap'] = ap_count
+            elif 'ap_list' in wireless_info and isinstance(wireless_info['ap_list'], list):
+                system['online_ap'] = len(wireless_info['ap_list'])
+        elif isinstance(wireless_info, list):
+            system['online_ap'] = len(wireless_info)
+
+        # Store interfaces and wireless info in system for extra attributes
+        system['_interfaces'] = interfaces_info
+        system['_wireless'] = wireless_info
+
+        # Try to get online clients
+        try:
+            resp = await self._run_cli_command(CMD_CLIENTS_ONLINE)
+            _LOGGER.debug("Clients response: %s", resp)
+            clients_data = self._extract_data(resp) or []
+
+            if isinstance(clients_data, list):
                 seen_ids = set()
-                for idx, u in enumerate(users_data):
+                for idx, u in enumerate(clients_data):
                     if isinstance(u, dict):
                         # 生成稳定的用户ID
-                        mac = u.get('mac_addr', '') or ''
-                        ip = u.get('ip_addr', '') or ''
-                        username = u.get('username', '') or ''
+                        mac = u.get('mac', '') or u.get('mac_addr', '') or ''
+                        ip = u.get('ip', '') or u.get('ip_addr', '') or ''
+                        hostname = u.get('hostname', '') or u.get('host', '') or u.get('name', '') or ''
 
-                        # 优先使用MAC地址，其次IP，再次用户名，最后索引
+                        # 优先使用MAC地址，其次IP，再次索引
                         if mac:
                             user_id = f"mac_{mac}"
                         elif ip:
                             user_id = f"ip_{ip}"
-                        elif username:
-                            user_id = f"user_{username}"
                         else:
                             user_id = f"idx_{idx}"
 
@@ -165,12 +232,12 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                             "id": user_id,
                             "ip": ip,
                             "mac": mac,
-                            "name": username or "Unknown",
+                            "name": hostname or ip or "Unknown",
                         })
             else:
-                _LOGGER.warning("Unexpected users data format: %s", type(users_data))
+                _LOGGER.warning("Unexpected clients data format: %s", type(clients_data))
         except Exception as e:
-            _LOGGER.warning("Failed to fetch users: %s", e)
+            _LOGGER.warning("Failed to fetch clients: %s", e)
 
         _LOGGER.debug("Returning data: system=%s, online_users=%d", system, len(online_users))
         return {

@@ -1,5 +1,16 @@
 # iKuai Router 更新日志
 
+## v0.1.36
+
+### 修复问题
+- 🐛 修复 sensor.py 中 @property 装饰器缩进错误
+- 🐛 修复 WanIpSensor 语法错误
+- 🐛 修复 WanIpv6Sensor 语法错误
+- 🐛 修复 OnlineApSensor 语法错误
+- 🐛 优化 coordinator.py 数据获取逻辑
+- 🐛 支持更多API响应格式
+---
+
 ## v0.1.35
 
 ### 修复问题
