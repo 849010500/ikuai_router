@@ -59,30 +59,30 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         return True
 
     async def _run_cli_command(self, command):
-        """Run an ikuai-cli command."""
-        if not await self._check_binary():
-            raise UpdateFailed(f"ikuai-cli binary not found or not executable: {self._binary_path}")
+            """Run an ikuai-cli command."""
+            if not await self._check_binary():
+                raise UpdateFailed(f"ikuai-cli binary not found or not executable: {self._binary_path}")
 
-        full_cmd = [self._binary_path] + command.split()
-        env = os.environ.copy()
-        env[ENV_IKUAI_CLI_BASE_URL] = self.config["base_url"]
-        env[ENV_IKUAI_CLI_TOKEN] = self.config.get("token", "")
+            full_cmd = [self._binary_path] + command.split()
+            env = os.environ.copy()
+            env[ENV_IKUAI_CLI_BASE_URL] = self.config["base_url"]
+            env[ENV_IKUAI_CLI_TOKEN] = self.config.get("token", "")
 
-        _LOGGER.debug("Running command: %s", " ".join(full_cmd))
+            _LOGGER.debug("Running command: %s", " ".join(full_cmd))
 
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *full_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
-            )
-            stdout, stderr = await process.communicate()
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *full_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
+                )
+                stdout, stderr = await process.communicate()
 
-            _LOGGER.debug("Command output: %s", stdout.decode())
-            if stderr:
-                _LOGGER.debug("Command stderr: %s", stderr.decode())
+                _LOGGER.debug("Command output: %s", stdout.decode())
+                if stderr:
+                    _LOGGER.debug("Command stderr: %s", stderr.decode())
 
-            if process.returncode != 0:
-                error_msg = stderr.decode().strip()
-                _LOGGER.error("Command failed with return code %d: %s", process.returncode, error_msg)
+                if process.returncode != 0:
+                    error_msg = stderr.decode().strip()
+                    _LOGGER.error("Command failed with return code %d: %s", process.returncode, error_msg)
                     raise UpdateFailed(f"CLI command failed: {error_msg}")
 
                 output = stdout.decode().strip()
@@ -90,7 +90,7 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                     _LOGGER.warning("Empty output from command: %s", command)
                     return {}
 
-        try:
+                try:
                     return json.loads(output)
                 except json.JSONDecodeError as e:
                     _LOGGER.error("Invalid JSON output: %s, error: %s, output: %s", command, e, output[:200])

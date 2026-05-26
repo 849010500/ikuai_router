@@ -1,5 +1,15 @@
 # iKuai Router 更新日志
 
+## v0.1.35
+
+### 修复问题
+- 🐛 修复项目图标显示错误（icon 路径改为 brand/icon.png）
+- 🐛 修复 AP 在线数传感器显示未知（支持多种字段名匹配）
+- 🐛 修复 WAN IPv6 传感器显示未知（支持多种字段名匹配）
+- 🐛 修复 coordinator.py 缩进错误
+- 🐛 优化 WAN IP 传感器（支持多种字段名匹配）
+---
+
 ## v0.1.32
 
 ### 新增功能
@@ -18,7 +28,6 @@
 - 🐛 修复 CpuTempSensor 语法错误
 - 🐛 修复 state_attributes 属性名（改用 extra_state_attributes）
 - 🐛 修复传感器数据格式解析
-
 ---
 
 ## v0.1.31
