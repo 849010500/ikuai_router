@@ -401,66 +401,66 @@ class WanIpSensor(IkuaiSensor):
         super().__init__(coordinator, config_entry, "WAN IP", "wan_ip")
 
     @property
-    def icon(self):
-        return "mdi:ip-network"
+        def icon(self):
+            return "mdi:ip-network"
 
-            @property
-    def state(self):
-        try:
-            system = self.coordinator.data.get("system", {})
-            if not system:
+        @property
+        def state(self):
+            try:
+                system = self.coordinator.data.get("system", {})
+                if not system:
+                    return None
+                # 尝试多个可能的字段名
+                for field in ['wan_ip', 'ip_addr', 'public_ip', 'wan_ip_addr', 'ip_address']:
+                    value = system.get(field)
+                    if value:
+                        return value
+                # 检查网络接口信息
+                if 'interfaces' in system:
+                    for iface in system['interfaces']:
+                        if isinstance(iface, dict):
+                            name = iface.get('name', '').lower()
+                            if 'wan' in name or 'pppoe' in name:
+                                ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4')
+                                if ip:
+                                    return ip
                 return None
-            # 尝试多个可能的字段名
-            for field in ['wan_ip', 'ip_addr', 'public_ip', 'wan_ip_addr', 'ip_address']:
-                value = system.get(field)
-                if value:
-                    return value
-            # 检查网络接口信息
-            if 'interfaces' in system:
-                for iface in system['interfaces']:
-                    if isinstance(iface, dict):
-                        name = iface.get('name', '').lower()
-                        if 'wan' in name or 'pppoe' in name:
-                            ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4')
-                            if ip:
-                                return ip
-            return None
-        except (KeyError, TypeError):
-            return None
-
-
-class WanIpv6Sensor(IkuaiSensor):
-    """WAN IPv6 传感器"""
-    def __init__(self, coordinator, config_entry):
-        super().__init__(coordinator, config_entry, "WAN IPv6", "wan_ipv6")
-
-    @property
-    def icon(self):
-        return "mdi:ip-network"
-
-            @property
-    def state(self):
-        try:
-            system = self.coordinator.data.get("system", {})
-            if not system:
+            except (KeyError, TypeError):
                 return None
-            # 尝试多个可能的字段名
-            for field in ['wan_ipv6', 'ipv6_addr', 'wan_ipv6_addr', 'ip6_addr', 'public_ipv6']:
-                value = system.get(field)
-                if value:
-                    return value
-            # 检查网络接口信息
-            if 'interfaces' in system:
-                for iface in system['interfaces']:
-                    if isinstance(iface, dict):
-                        name = iface.get('name', '').lower()
-                        if 'wan' in name or 'pppoe' in name:
-                            ipv6 = iface.get('ipv6') or iface.get('ip6_addr')
-                            if ipv6:
-                                return ipv6
-            return None
-        except (KeyError, TypeError):
-            return None
+
+
+    class WanIpv6Sensor(IkuaiSensor):
+        """WAN IPv6 传感器"""
+        def __init__(self, coordinator, config_entry):
+            super().__init__(coordinator, config_entry, "WAN IPv6", "wan_ipv6")
+
+        @property
+        def icon(self):
+            return "mdi:ip-network"
+
+        @property
+        def state(self):
+            try:
+                system = self.coordinator.data.get("system", {})
+                if not system:
+                    return None
+                # 尝试多个可能的字段名
+                for field in ['wan_ipv6', 'ipv6_addr', 'wan_ipv6_addr', 'ip6_addr', 'public_ipv6']:
+                    value = system.get(field)
+                    if value:
+                        return value
+                # 检查网络接口信息
+                if 'interfaces' in system:
+                    for iface in system['interfaces']:
+                        if isinstance(iface, dict):
+                            name = iface.get('name', '').lower()
+                            if 'wan' in name or 'pppoe' in name:
+                                ipv6 = iface.get('ipv6') or iface.get('ip6_addr')
+                                if ipv6:
+                                    return ipv6
+                return None
+            except (KeyError, TypeError):
+                return None
 
 
 # ============ 终端统计传感器 ============
@@ -520,41 +520,41 @@ class OnlineApSensor(IkuaiSensor):
         super().__init__(coordinator, config_entry, "AP 在线数", "online_ap")
 
     @property
-    def icon(self):
-        return "mdi:router-wireless"
+        def icon(self):
+            return "mdi:router-wireless"
 
-            @property
-    def state(self):
-        try:
-            system = self.coordinator.data.get("system", {})
-            if not system:
+        @property
+        def state(self):
+            try:
+                system = self.coordinator.data.get("system", {})
+                if not system:
+                    return None
+                # 尝试多个可能的字段名
+                for field in ['online_ap', 'ap_count', 'wireless_ap_count', 'ap_online', 'ap_online_count']:
+                    value = system.get(field)
+                    if value is not None:
+                        return value
+                # 检查无线信息
+                if 'wireless' in system:
+                    wireless = system['wireless']
+                    if isinstance(wireless, dict):
+                        ap_count = wireless.get('ap_count') or wireless.get('ap_online')
+                        if ap_count is not None:
+                            return ap_count
+                # 检查AP信息
+                if 'ap_info' in system:
+                    ap_info = system['ap_info']
+                    if isinstance(ap_info, list):
+                        return len(ap_info)
+                    elif isinstance(ap_info, dict):
+                        return ap_info.get('count', 0)
                 return None
-            # 尝试多个可能的字段名
-            for field in ['online_ap', 'ap_count', 'wireless_ap_count', 'ap_online', 'ap_online_count']:
-                value = system.get(field)
-                if value is not None:
-                    return value
-            # 检查无线信息
-            if 'wireless' in system:
-                wireless = system['wireless']
-                if isinstance(wireless, dict):
-                    ap_count = wireless.get('ap_count') or wireless.get('ap_online')
-                    if ap_count is not None:
-                        return ap_count
-            # 检查AP信息
-            if 'ap_info' in system:
-                ap_info = system['ap_info']
-                if isinstance(ap_info, list):
-                    return len(ap_info)
-                elif isinstance(ap_info, dict):
-                    return ap_info.get('count', 0)
-            return None
-        except (KeyError, TypeError):
-            return None
+            except (KeyError, TypeError):
+                return None
 
-    @property
-    def unit_of_measurement(self):
-        return "devices"
+        @property
+        def unit_of_measurement(self):
+            return "devices"
 
 
 # ============ 设备信息传感器 ============

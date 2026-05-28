@@ -1,5 +1,14 @@
 # iKuai Router 更新日志
 
+## v0.1.38
+
+### 修复问题
+- 🐛 修复 coordinator.py 中 _run_cli_command 方法缩进错误
+- 🐛 修复 sensor.py 中 WanIpSensor、WanIpv6Sensor、OnlineApSensor 的 @property 装饰器缩进错误
+- 🐛 优化 __init__.py 错误处理，添加 ConfigEntryNotReady 异常处理
+
+---
+
 ## v0.1.37
 
 ### 修复问题
