@@ -1,4 +1,4 @@
-﻿"""Sensor platform for iKuai Router."""
+"""Sensor platform for iKuai Router."""
 import logging
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity

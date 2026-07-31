@@ -103,13 +103,13 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                 _LOGGER.error("Permission denied for ikuai-cli: %s", self._binary_path)
                 raise UpdateFailed(f"Permission denied for ikuai-cli: {self._binary_path}")
 
-        def _extract_data(self, resp):
-            """Extract data from response, handling different formats."""
-            if isinstance(resp, dict):
-                for key in ['data', 'sysinfo', 'result']:
-                    if key in resp:
-                        return resp[key]
-            return resp
+    def _extract_data(self, resp):
+        """Extract data from response, handling different formats."""
+        if isinstance(resp, dict):
+            for key in ['data', 'sysinfo', 'result']:
+                if key in resp:
+                    return resp[key]
+        return resp
 
     async def _async_update_data(self):
         """Fetch data from ikuai router."""
