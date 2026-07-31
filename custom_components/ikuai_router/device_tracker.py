@@ -1,6 +1,6 @@
 """Device tracker platform for iKuai Router."""
 import logging
-from homeassistant.components.device_tracker.config_entry import ScannerEntity
+from homeassistant.components.device_tracker import ScannerEntity
 from homeassistant.components.device_tracker.const import SourceType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo

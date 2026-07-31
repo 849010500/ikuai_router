@@ -3,12 +3,34 @@
     "step": {
       "user": {
         "title": "iKuai Router",
+        "description": "请输入 iKuai 路由器的地址和 API Token。\n\n如果地址中不包含端口，将自动探测常见端口。",
         "data": {
-          "base_url": "Router URL",
+          "base_url": "Router URL (不含端口将自动探测)",
           "token": "API Token",
           "binary_path": "ikuai-cli path (optional, auto-download if empty)"
         }
+      },
+      "detect": {
+        "title": "iKuai Router - 端口探测",
+        "description": "检测到以下可用地址：\n\n{tried}\n\n请在上方 URL 中选择/确认（可手动修改，必须包含端口）。",
+        "data": {
+          "base_url": "Router URL (含端口)",
+          "token": "API Token",
+          "binary_path": "ikuai-cli path (optional)"
+        }
+      },
+      "reconfigure": {
+        "title": "iKuai Router - 重新配置",
+        "description": "修改连接信息。如果地址中不包含端口，将自动探测常见端口。",
+        "data": {
+          "base_url": "Router URL (不含端口将自动探测)",
+          "token": "API Token",
+          "binary_path": "ikuai-cli path (optional)"
+        }
       }
+    },
+    "error": {
+      "cannot_connect": "无法连接，请检查地址/端口，或手动填写包含正确端口的 URL。"
     }
   }
 }
