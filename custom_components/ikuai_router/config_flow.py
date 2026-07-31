@@ -15,7 +15,7 @@ DATA_SCHEMA = vol.Schema({
 
 class IkuaiConfigFlow(config_entries.ConfigFlow):
     VERSION = 1
-    DOMAIN = DOMAIN
+    DOMAIN = "ikuai_router"
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
