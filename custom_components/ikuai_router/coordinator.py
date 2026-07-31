@@ -20,7 +20,7 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass: HomeAssistant, config_entry):
         super().__init__(
-            hass, _LOGGER, name="ikuai_router", update_interval=timedelta(seconds=30),
+            hass, _LOGGER, name="ikuai_router", update_interval=timedelta(seconds=5),
         )
         self.config_entry = config_entry
         self.config = config_entry.data
@@ -153,31 +153,59 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Failed to fetch interfaces config: %s", e)
 
         # Extract WAN IP and IPv6 from interfaces
-        if isinstance(interfaces_info, dict):
-            # Try to find WAN interface
-            for key, value in interfaces_info.items():
-                if isinstance(value, dict):
-                    iface_name = key.lower() or value.get('name', '').lower()
-                    if 'wan' in iface_name or 'pppoe' in iface_name:
-                        # IPv4
-                        ip = value.get('ip') or value.get('ip_addr') or value.get('ipv4') or value.get('address')
-                        if ip and not system.get('wan_ip'):
-                            system['wan_ip'] = ip
-                        # IPv6
-                        ipv6 = value.get('ipv6') or value.get('ip6_addr') or value.get('ipv6_addr') or value.get('address6')
-                        if ipv6 and not system.get('wan_ipv6'):
-                            system['wan_ipv6'] = ipv6
-        elif isinstance(interfaces_info, list):
-            for iface in interfaces_info:
-                if isinstance(iface, dict):
-                    iface_name = iface.get('name', '').lower()
-                    if 'wan' in iface_name or 'pppoe' in iface_name:
-                        ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4') or iface.get('address')
-                        if ip and not system.get('wan_ip'):
-                            system['wan_ip'] = ip
-                        ipv6 = iface.get('ipv6') or iface.get('ip6_addr') or iface.get('ipv6_addr') or iface.get('address6')
-                        if ipv6 and not system.get('wan_ipv6'):
-                            system['wan_ipv6'] = ipv6
+        def _is_private_ip(ip_str: str) -> bool:
+            """Check if an IP address is a private/internal address."""
+            if not ip_str:
+                return True
+            parts = ip_str.split('.')
+            if len(parts) != 4:
+                return False
+            try:
+                first = int(parts[0])
+                second = int(parts[1])
+            except (ValueError, IndexError):
+                return False
+            if first == 10:
+                return True
+            if first == 172 and 16 <= second <= 31:
+                return True
+            if first == 192 and second == 168:
+                return True
+            if first == 127:
+                return True
+            return False
+
+        def _find_wan_ip(interfaces_data):
+            """Find the first non-private WAN IP from interfaces data."""
+            if isinstance(interfaces_data, dict):
+                items = interfaces_data.items()
+            elif isinstance(interfaces_data, list):
+                items = [(None, iface) for iface in interfaces_data]
+            else:
+                return None, None
+
+            for key, value in items:
+                if not isinstance(value, dict):
+                    continue
+                iface_name = (key or '').lower() if isinstance(key, str) else ''
+                iface_name = iface_name or value.get('name', '').lower()
+                if 'wan' not in iface_name and 'pppoe' not in iface_name:
+                    continue
+                # IPv4
+                ip = value.get('ip') or value.get('ip_addr') or value.get('ipv4') or value.get('address')
+                if ip and not _is_private_ip(ip):
+                    return ip, None
+                # IPv6
+                ipv6 = value.get('ipv6') or value.get('ip6_addr') or value.get('ipv6_addr') or value.get('address6')
+                if ipv6 and not _is_private_ip(ipv6):
+                    return None, ipv6
+            return None, None
+
+        wan_ip, wan_ipv6 = _find_wan_ip(interfaces_info)
+        if wan_ip and not system.get('wan_ip'):
+            system['wan_ip'] = wan_ip
+        if wan_ipv6 and not system.get('wan_ipv6'):
+            system['wan_ipv6'] = wan_ipv6
 
         # Try to get wireless stats
         try:
@@ -188,14 +216,37 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Failed to fetch wireless stats: %s", e)
 
         # Extract AP count from wireless info
-        if isinstance(wireless_info, dict):
-            ap_count = wireless_info.get('ap_count') or wireless_info.get('ap_online') or wireless_info.get('online_ap') or wireless_info.get('total_ap')
-            if ap_count is not None:
-                system['online_ap'] = ap_count
-            elif 'ap_list' in wireless_info and isinstance(wireless_info['ap_list'], list):
-                system['online_ap'] = len(wireless_info['ap_list'])
-        elif isinstance(wireless_info, list):
-            system['online_ap'] = len(wireless_info)
+        def _extract_ap_count(data):
+            """Extract AP count from various possible response formats."""
+            if isinstance(data, dict):
+                # Try all possible field names for AP count
+                for field in ['ap_count', 'ap_online', 'online_ap', 'total_ap', 'ap_total', 'ap_num', 'ap_count_total']:
+                    val = data.get(field)
+                    if val is not None:
+                        try:
+                            return int(val)
+                        except (ValueError, TypeError):
+                            continue
+                # Check nested structures
+                if 'ap_list' in data and isinstance(data['ap_list'], list):
+                    return len(data['ap_list'])
+                if 'ap_info' in data and isinstance(data['ap_info'], list):
+                    return len(data['ap_info'])
+                if 'wireless' in data and isinstance(data['wireless'], dict):
+                    for field in ['ap_count', 'ap_online', 'online_ap', 'total_ap']:
+                        val = data['wireless'].get(field)
+                        if val is not None:
+                            try:
+                                return int(val)
+                            except (ValueError, TypeError):
+                                continue
+            elif isinstance(data, list):
+                return len(data)
+            return None
+
+        ap_count = _extract_ap_count(wireless_info)
+        if ap_count is not None:
+            system['online_ap'] = ap_count
 
         # Store interfaces and wireless info in system for extra attributes
         system['_interfaces'] = interfaces_info

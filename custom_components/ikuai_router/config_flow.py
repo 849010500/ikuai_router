@@ -229,6 +229,8 @@ class IkuaiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data.pop(CONF_BINARY_PATH, None)
 
         if self._reconfigure:
-            return self.async_update_reconfigure_and_abort(data=data)
+            return self.async_update_reload_and_abort(
+                self.hass, self.config_entry, data=data
+            )
 
         return self.async_create_entry(title=CONFIG_ENTRY_TITLE, data=data)
