@@ -31,7 +31,7 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass: HomeAssistant, config_entry):
         super().__init__(
-            hass, _LOGGER, name="ikuai_router", update_interval=timedelta(seconds=5),
+            hass, _LOGGER, name="ikuai_router", update_interval=timedelta(seconds=10),
         )
         self.config_entry = config_entry
         self.config = config_entry.data
