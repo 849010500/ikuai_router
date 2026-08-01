@@ -10,7 +10,17 @@ from pathlib import Path
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import ENV_IKUAI_CLI_BASE_URL, ENV_IKUAI_CLI_TOKEN, CMD_SYSTEM_MONITOR, CMD_CLIENTS_ONLINE, CMD_WIRELESS_STATS, CMD_INTERFACES, CMD_INTERFACES_CONFIG
+from .const import (
+    ENV_IKUAI_CLI_BASE_URL,
+    ENV_IKUAI_CLI_TOKEN,
+    CMD_SYSTEM_MONITOR,
+    CMD_CLIENTS_ONLINE,
+    CMD_CLIENTS_IP6_ONLINE,
+    CMD_WIRELESS_STATS,
+    CMD_INTERFACES,
+    CMD_INTERFACES_CONFIG,
+    CMD_INTERFACES_TRAFFIC_V6,
+)
 from .downloader import IkuaiCliDownloader
 
 _LOGGER = logging.getLogger(__name__)
@@ -179,6 +189,35 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             """Check if an IP is valid (not '--' or None)."""
             return bool(ip_str) and ip_str.strip() != "--"
 
+        def _extract_ipv6_addresses(data):
+            """从 IPv6 客户端数据中提取 IPv6 地址（过滤链路本地 fe80::）。"""
+            addresses = []
+            if isinstance(data, dict):
+                # 尝试常见嵌套容器
+                for key in ('data', 'rows', 'list', 'result', 'items'):
+                    if key in data and isinstance(data[key], list):
+                        data = data[key]
+                        break
+            if isinstance(data, list):
+                for client in data:
+                    if not isinstance(client, dict):
+                        continue
+                    for field in ('ip6_addr', 'ipv6_addr', 'ipv6', 'ip6', 'address', 'address6', 'ip_addr'):
+                        value = client.get(field)
+                        if value and isinstance(value, str) and ':' in value and _is_valid_ip(value):
+                            addresses.append(value)
+                            break
+            # 去重并过滤 fe80 链路本地
+            result = []
+            seen = set()
+            for addr in addresses:
+                if addr.lower().startswith('fe80:'):
+                    continue
+                if addr not in seen:
+                    seen.add(addr)
+                    result.append(addr)
+            return result
+
         def _find_public_ip_from_all_interfaces(interfaces_data):
             """从所有接口中查找第一个非私有 IP（不限制接口名）。
 
@@ -289,6 +328,27 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             if not wan_ipv6 and fallback_ipv6:
                 wan_ipv6 = fallback_ipv6
 
+        # 如果 WAN IPv6 未找到，尝试从在线 IPv6 客户端中提取
+        if not wan_ipv6:
+            try:
+                ip6_resp = await self._run_cli_command(CMD_CLIENTS_IP6_ONLINE)
+                _LOGGER.debug("IPv6 clients response: %s", ip6_resp)
+                ip6_data = self._extract_data(ip6_resp) or []
+                ipv6_addrs = _extract_ipv6_addresses(ip6_data)
+                if ipv6_addrs:
+                    _LOGGER.debug("从 IPv6 客户端中提取到地址: %s", ipv6_addrs)
+                    # 优先选择非链路本地、非唯一本地 (fc00::/7) 的全局地址
+                    for addr in ipv6_addrs:
+                        lower = addr.lower()
+                        if lower.startswith('fe80:') or lower.startswith('fc') or lower.startswith('fd'):
+                            continue
+                        wan_ipv6 = addr
+                        break
+                    if not wan_ipv6 and ipv6_addrs:
+                        wan_ipv6 = ipv6_addrs[0]
+            except Exception as e:
+                _LOGGER.debug("Failed to fetch IPv6 clients: %s", e)
+
         # 如果系统监控返回的 WAN IP 是内网 IP，尝试用接口数据覆盖
         if wan_ip:
             system['wan_ip'] = wan_ip
@@ -296,6 +356,8 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("系统监控返回的内网 WAN IP 将被忽略")
         if wan_ipv6:
             system['wan_ipv6'] = wan_ipv6
+        else:
+            system['wan_ipv6'] = None
 
         # Try to get wireless stats
         try:
