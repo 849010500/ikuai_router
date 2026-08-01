@@ -9,7 +9,7 @@ ENV_IKUAI_CLI_TOKEN = "IKUAI_CLI_TOKEN"
 # Default command templates
 CMD_SYSTEM_MONITOR = "monitor system --format json"
 CMD_CLIENTS_ONLINE = "monitor clients-online --format json --page 1 --page-size 200"
-CMD_WIRELESS_STATS = "monitor wireless-statistics --format json"
+CMD_WIRELESS_STATS = "monitor wireless-stats --format json"
 CMD_INTERFACES = "monitor interfaces --format json"
 CMD_INTERFACES_CONFIG = "monitor interfaces-config --format json"
 

@@ -175,6 +175,10 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                 return True
             return False
 
+        def _is_valid_ip(ip_str: str) -> bool:
+            """Check if an IP is valid (not '--' or None)."""
+            return bool(ip_str) and ip_str.strip() != "--"
+
         def _find_public_ip_from_all_interfaces(interfaces_data):
             """从所有接口中查找第一个非私有 IP（不限制接口名）。"""
             if isinstance(interfaces_data, dict):
@@ -189,16 +193,21 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                     continue
                 # IPv4
                 ip = value.get('ip') or value.get('ip_addr') or value.get('ipv4') or value.get('address')
-                if ip and not _is_private_ip(ip):
+                if ip and _is_valid_ip(ip) and not _is_private_ip(ip):
                     return ip, None
                 # IPv6
                 ipv6 = value.get('ipv6') or value.get('ip6_addr') or value.get('ipv6_addr') or value.get('address6')
-                if ipv6 and not _is_private_ip(ipv6):
+                if ipv6 and _is_valid_ip(ipv6) and not _is_private_ip(ipv6):
                     return None, ipv6
             return None, None
 
         def _find_wan_ip(interfaces_data):
-            """从 wan/pppoe 接口中查找非私有 IP。"""
+            """从 WAN 接口中查找公网 IP。
+
+            实际接口数据格式：
+            - iface_check: [{"interface":"adsl140","ip_addr":"36.248.107.36","internet":"PPPOE",...}]
+            - iface_stream: [{"interface":"lan1","ip_addr":"192.168.119.1",...}, ...]
+            """
             if isinstance(interfaces_data, dict):
                 items = interfaces_data.items()
             elif isinstance(interfaces_data, list):
@@ -210,23 +219,33 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                 if not isinstance(value, dict):
                     continue
                 iface_name = (key or '').lower() if isinstance(key, str) else ''
-                iface_name = iface_name or value.get('name', '').lower()
-                if 'wan' not in iface_name and 'pppoe' not in iface_name:
+                iface_name = iface_name or value.get('name', '').lower() or value.get('interface', '').lower()
+                # 判断是否为 WAN 接口：
+                # 1. 名称包含 wan/pppoe
+                # 2. internet 字段为 PPPOE / DHCP / 静态IP 等（非 LAN）
+                is_wan = (
+                    'wan' in iface_name or 'pppoe' in iface_name or 'adsl' in iface_name or 'vwan' in iface_name
+                )
+                internet = str(value.get('internet', '')).lower()
+                if not is_wan and internet not in ('pppoe', 'dhcp', 'static', '静态', '动态'):
                     continue
+                if 'lan' in iface_name:
+                    continue
+
                 # IPv4
                 ip = value.get('ip') or value.get('ip_addr') or value.get('ipv4') or value.get('address')
-                if ip and not _is_private_ip(ip):
+                if ip and _is_valid_ip(ip) and not _is_private_ip(ip):
                     return ip, None
                 # IPv6
                 ipv6 = value.get('ipv6') or value.get('ip6_addr') or value.get('ipv6_addr') or value.get('address6')
-                if ipv6 and not _is_private_ip(ipv6):
+                if ipv6 and _is_valid_ip(ipv6) and not _is_private_ip(ipv6):
                     return None, ipv6
             return None, None
 
-        # 优先从 wan/pppoe 接口获取公网 IP
+        # 优先从 WAN 接口获取公网 IP
         wan_ip, wan_ipv6 = _find_wan_ip(interfaces_info)
 
-        # 如果 wan/pppoe 接口没有公网 IP，则从所有接口中查找
+        # 如果 WAN 接口没有公网 IP，则从所有接口中查找
         if not wan_ip or not wan_ipv6:
             fallback_ip, fallback_ipv6 = _find_public_ip_from_all_interfaces(interfaces_info)
             if not wan_ip and fallback_ip:
@@ -252,8 +271,23 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
 
         # Extract AP count from wireless info
         def _extract_ap_count(data):
-            """Extract AP count from various possible response formats."""
+            """Extract AP count from various possible response formats.
+
+            实际输出格式：
+            {"ap_status":{"ap_count":1,"ap_offline":0,"ap_online":1,...},
+             "clt_status":{...}}
+            """
             if isinstance(data, dict):
+                # 优先检查 ap_status 嵌套结构（实际格式）
+                if 'ap_status' in data and isinstance(data['ap_status'], dict):
+                    ap_status = data['ap_status']
+                    for field in ['ap_online', 'ap_count', 'online_ap', 'total_ap', 'ap_total']:
+                        val = ap_status.get(field)
+                        if val is not None:
+                            try:
+                                return int(val)
+                            except (ValueError, TypeError):
+                                continue
                 # Try all possible field names for AP count
                 for field in ['ap_count', 'ap_online', 'online_ap', 'total_ap', 'ap_total', 'ap_num', 'ap_count_total']:
                     val = data.get(field)
@@ -282,6 +316,9 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
         ap_count = _extract_ap_count(wireless_info)
         if ap_count is not None:
             system['online_ap'] = ap_count
+        else:
+            # 如果没有 AP 统计信息，默认 0
+            system['online_ap'] = 0
 
         # Store interfaces and wireless info in system for extra attributes
         system['_interfaces'] = interfaces_info
