@@ -14,4 +14,5 @@ CMD_WIRELESS_STATS = "monitor wireless-stats --format json"
 CMD_INTERFACES = "monitor interfaces --format json"
 CMD_INTERFACES_CONFIG = "monitor interfaces-config --format json"
 CMD_INTERFACES_TRAFFIC_V6 = "monitor interfaces-traffic-v6 --format json"
+CMD_INTERFACES_PHYSICAL = "monitor interfaces-physical --format json"
 

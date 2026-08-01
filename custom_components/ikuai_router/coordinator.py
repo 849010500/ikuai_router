@@ -20,6 +20,7 @@ from .const import (
     CMD_INTERFACES,
     CMD_INTERFACES_CONFIG,
     CMD_INTERFACES_TRAFFIC_V6,
+    CMD_INTERFACES_PHYSICAL,
 )
 from .downloader import IkuaiCliDownloader
 
@@ -167,6 +168,19 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             """Check if an IP address is a private/internal address."""
             if not ip_str:
                 return True
+            # IPv6 地址：链路本地 fe80::、唯一本地 fc00::/fd00::、多播 ff00::
+            if ':' in ip_str:
+                lower = ip_str.lower()
+                if lower.startswith('fe80:'):
+                    return True
+                if lower.startswith('fc') or lower.startswith('fd'):
+                    return True
+                if lower.startswith('ff00:'):
+                    return True
+                if lower == '::' or lower == '::1':
+                    return True
+                return False
+            # IPv4 地址
             parts = ip_str.split('.')
             if len(parts) != 4:
                 return False
@@ -328,26 +342,44 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             if not wan_ipv6 and fallback_ipv6:
                 wan_ipv6 = fallback_ipv6
 
-        # 如果 WAN IPv6 未找到，尝试从在线 IPv6 客户端中提取
+        # 如果 WAN IPv6 未找到，尝试从物理网卡信息中提取
         if not wan_ipv6:
             try:
-                ip6_resp = await self._run_cli_command(CMD_CLIENTS_IP6_ONLINE)
-                _LOGGER.debug("IPv6 clients response: %s", ip6_resp)
-                ip6_data = self._extract_data(ip6_resp) or []
-                ipv6_addrs = _extract_ipv6_addresses(ip6_data)
-                if ipv6_addrs:
-                    _LOGGER.debug("从 IPv6 客户端中提取到地址: %s", ipv6_addrs)
-                    # 优先选择非链路本地、非唯一本地 (fc00::/7) 的全局地址
-                    for addr in ipv6_addrs:
-                        lower = addr.lower()
-                        if lower.startswith('fe80:') or lower.startswith('fc') or lower.startswith('fd'):
-                            continue
-                        wan_ipv6 = addr
-                        break
-                    if not wan_ipv6 and ipv6_addrs:
-                        wan_ipv6 = ipv6_addrs[0]
+                phys_resp = await self._run_cli_command(CMD_INTERFACES_PHYSICAL)
+                _LOGGER.debug("Physical interfaces response: %s", phys_resp)
+                phys_data = self._extract_data(phys_resp) or {}
+                # 从物理网卡信息中提取 IPv6 地址
+                if isinstance(phys_data, dict):
+                    phys_items = phys_data.items()
+                elif isinstance(phys_data, list):
+                    phys_items = [(None, iface) for iface in phys_data]
+                else:
+                    phys_items = []
+
+                for key, value in phys_items:
+                    if isinstance(value, list):
+                        for iface in value:
+                            if not isinstance(iface, dict):
+                                continue
+                            ipv6_addr = (
+                                iface.get('ipv6') or iface.get('ip6_addr') or iface.get('ipv6_addr')
+                                or iface.get('address6') or iface.get('ip6')
+                            )
+                            if ipv6_addr and _is_valid_ip(ipv6_addr) and not _is_private_ip(ipv6_addr):
+                                wan_ipv6 = ipv6_addr
+                                _LOGGER.debug("从物理网卡找到 WAN IPv6: %s", wan_ipv6)
+                                break
+                    elif isinstance(value, dict):
+                        ipv6_addr = (
+                            value.get('ipv6') or value.get('ip6_addr') or value.get('ipv6_addr')
+                            or value.get('address6') or value.get('ip6')
+                        )
+                        if ipv6_addr and _is_valid_ip(ipv6_addr) and not _is_private_ip(ipv6_addr):
+                            wan_ipv6 = ipv6_addr
+                            _LOGGER.debug("从物理网卡找到 WAN IPv6: %s", wan_ipv6)
+                            break
             except Exception as e:
-                _LOGGER.debug("Failed to fetch IPv6 clients: %s", e)
+                _LOGGER.debug("Failed to fetch physical interfaces: %s", e)
 
         # 如果系统监控返回的 WAN IP 是内网 IP，尝试用接口数据覆盖
         if wan_ip:
