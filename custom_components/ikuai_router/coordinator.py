@@ -180,7 +180,12 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             return bool(ip_str) and ip_str.strip() != "--"
 
         def _find_public_ip_from_all_interfaces(interfaces_data):
-            """从所有接口中查找第一个非私有 IP（不限制接口名）。"""
+            """从所有接口中查找第一个非私有 IP（不限制接口名）。
+
+            实际接口数据格式：
+            {"iface_check": [{"interface":"adsl140","ip_addr":"36.248.107.36",...}],
+             "iface_stream": [{"interface":"lan1","ip_addr":"192.168.119.1",...}, ...]}
+            """
             if isinstance(interfaces_data, dict):
                 items = interfaces_data.items()
             elif isinstance(interfaces_data, list):
@@ -189,6 +194,21 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                 return None, None
 
             for key, value in items:
+                # 支持值嵌套列表（如 iface_check/iface_stream 是列表）
+                if isinstance(value, list):
+                    for iface in value:
+                        if not isinstance(iface, dict):
+                            continue
+                        # IPv4
+                        ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4') or iface.get('address')
+                        if ip and _is_valid_ip(ip) and not _is_private_ip(ip):
+                            return ip, None
+                        # IPv6
+                        ipv6 = iface.get('ipv6') or iface.get('ip6_addr') or iface.get('ipv6_addr') or iface.get('address6')
+                        if ipv6 and _is_valid_ip(ipv6) and not _is_private_ip(ipv6):
+                            return None, ipv6
+                    continue
+
                 if not isinstance(value, dict):
                     continue
                 # IPv4
@@ -205,8 +225,8 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
             """从 WAN 接口中查找公网 IP。
 
             实际接口数据格式：
-            - iface_check: [{"interface":"adsl140","ip_addr":"36.248.107.36","internet":"PPPOE",...}]
-            - iface_stream: [{"interface":"lan1","ip_addr":"192.168.119.1",...}, ...]
+            {"iface_check": [{"interface":"adsl140","ip_addr":"36.248.107.36","internet":"PPPOE",...}],
+             "iface_stream": [{"interface":"lan1","ip_addr":"192.168.119.1",...}, ...]}
             """
             if isinstance(interfaces_data, dict):
                 items = interfaces_data.items()
@@ -216,31 +236,47 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                 return None, None
 
             for key, value in items:
-                if not isinstance(value, dict):
-                    continue
-                iface_name = (key or '').lower() if isinstance(key, str) else ''
-                iface_name = iface_name or value.get('name', '').lower() or value.get('interface', '').lower()
-                # 判断是否为 WAN 接口：
-                # 1. 名称包含 wan/pppoe
-                # 2. internet 字段为 PPPOE / DHCP / 静态IP 等（非 LAN）
-                is_wan = (
-                    'wan' in iface_name or 'pppoe' in iface_name or 'adsl' in iface_name or 'vwan' in iface_name
-                )
-                internet = str(value.get('internet', '')).lower()
-                if not is_wan and internet not in ('pppoe', 'dhcp', 'static', '静态', '动态'):
-                    continue
-                if 'lan' in iface_name:
+                # 支持值嵌套列表（如 iface_check/iface_stream 是列表）
+                if isinstance(value, list):
+                    for iface in value:
+                        if not isinstance(iface, dict):
+                            continue
+                        result = _check_iface_is_wan(iface)
+                        if result:
+                            return result
                     continue
 
-                # IPv4
-                ip = value.get('ip') or value.get('ip_addr') or value.get('ipv4') or value.get('address')
-                if ip and _is_valid_ip(ip) and not _is_private_ip(ip):
-                    return ip, None
-                # IPv6
-                ipv6 = value.get('ipv6') or value.get('ip6_addr') or value.get('ipv6_addr') or value.get('address6')
-                if ipv6 and _is_valid_ip(ipv6) and not _is_private_ip(ipv6):
-                    return None, ipv6
+                if not isinstance(value, dict):
+                    continue
+                result = _check_iface_is_wan(value)
+                if result:
+                    return result
             return None, None
+
+        def _check_iface_is_wan(iface: dict):
+            """检查单个接口是否为 WAN 并返回 (ip, ipv6)。"""
+            iface_name = str(iface.get('name', '') or iface.get('interface', '') or '').lower()
+            # 判断是否为 WAN 接口：
+            # 1. 名称包含 wan/pppoe/adsl/vwan
+            # 2. internet 字段为 PPPOE / DHCP / 静态IP 等（非 LAN）
+            is_wan = (
+                'wan' in iface_name or 'pppoe' in iface_name or 'adsl' in iface_name or 'vwan' in iface_name
+            )
+            internet = str(iface.get('internet', '')).lower()
+            if not is_wan and internet not in ('pppoe', 'dhcp', 'static', '静态', '动态'):
+                return None
+            if 'lan' in iface_name:
+                return None
+
+            # IPv4
+            ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4') or iface.get('address')
+            if ip and _is_valid_ip(ip) and not _is_private_ip(ip):
+                return ip, None
+            # IPv6
+            ipv6 = iface.get('ipv6') or iface.get('ip6_addr') or iface.get('ipv6_addr') or iface.get('address6')
+            if ipv6 and _is_valid_ip(ipv6) and not _is_private_ip(ipv6):
+                return None, ipv6
+            return None
 
         # 优先从 WAN 接口获取公网 IP
         wan_ip, wan_ipv6 = _find_wan_ip(interfaces_info)
