@@ -175,8 +175,30 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                 return True
             return False
 
+        def _find_public_ip_from_all_interfaces(interfaces_data):
+            """从所有接口中查找第一个非私有 IP（不限制接口名）。"""
+            if isinstance(interfaces_data, dict):
+                items = interfaces_data.items()
+            elif isinstance(interfaces_data, list):
+                items = [(None, iface) for iface in interfaces_data]
+            else:
+                return None, None
+
+            for key, value in items:
+                if not isinstance(value, dict):
+                    continue
+                # IPv4
+                ip = value.get('ip') or value.get('ip_addr') or value.get('ipv4') or value.get('address')
+                if ip and not _is_private_ip(ip):
+                    return ip, None
+                # IPv6
+                ipv6 = value.get('ipv6') or value.get('ip6_addr') or value.get('ipv6_addr') or value.get('address6')
+                if ipv6 and not _is_private_ip(ipv6):
+                    return None, ipv6
+            return None, None
+
         def _find_wan_ip(interfaces_data):
-            """Find the first non-private WAN IP from interfaces data."""
+            """从 wan/pppoe 接口中查找非私有 IP。"""
             if isinstance(interfaces_data, dict):
                 items = interfaces_data.items()
             elif isinstance(interfaces_data, list):
@@ -201,10 +223,23 @@ class IkuaiDataCoordinator(DataUpdateCoordinator):
                     return None, ipv6
             return None, None
 
+        # 优先从 wan/pppoe 接口获取公网 IP
         wan_ip, wan_ipv6 = _find_wan_ip(interfaces_info)
-        if wan_ip and not system.get('wan_ip'):
+
+        # 如果 wan/pppoe 接口没有公网 IP，则从所有接口中查找
+        if not wan_ip or not wan_ipv6:
+            fallback_ip, fallback_ipv6 = _find_public_ip_from_all_interfaces(interfaces_info)
+            if not wan_ip and fallback_ip:
+                wan_ip = fallback_ip
+            if not wan_ipv6 and fallback_ipv6:
+                wan_ipv6 = fallback_ipv6
+
+        # 如果系统监控返回的 WAN IP 是内网 IP，尝试用接口数据覆盖
+        if wan_ip:
             system['wan_ip'] = wan_ip
-        if wan_ipv6 and not system.get('wan_ipv6'):
+        elif system.get('wan_ip') and _is_private_ip(system['wan_ip']):
+            _LOGGER.debug("系统监控返回的内网 WAN IP 将被忽略")
+        if wan_ipv6:
             system['wan_ipv6'] = wan_ipv6
 
         # Try to get wireless stats

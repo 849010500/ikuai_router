@@ -410,20 +410,30 @@ class WanIpSensor(IkuaiSensor):
             system = self.coordinator.data.get("system", {})
             if not system:
                 return None
-            # 尝试多个可能的字段名
-            for field in ['wan_ip', 'ip_addr', 'public_ip', 'wan_ip_addr', 'ip_address']:
+            # 只使用 coordinator 中处理的 wan_ip（已过滤内网 IP）
+            for field in ['wan_ip', 'public_ip', 'wan_ip_addr']:
                 value = system.get(field)
                 if value:
                     return value
-            # 检查网络接口信息
-            if 'interfaces' in system:
-                for iface in system['interfaces']:
-                    if isinstance(iface, dict):
-                        name = iface.get('name', '').lower()
-                        if 'wan' in name or 'pppoe' in name:
-                            ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4')
-                            if ip:
-                                return ip
+            # 检查网络接口信息（带 wan/pppoe 标识）
+            if '_interfaces' in system:
+                interfaces = system['_interfaces']
+                if isinstance(interfaces, dict):
+                    for name, iface in interfaces.items():
+                        if isinstance(iface, dict):
+                            iface_name = (str(name) + " " + str(iface.get('name', ''))).lower()
+                            if 'wan' in iface_name or 'pppoe' in iface_name:
+                                ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4') or iface.get('address')
+                                if ip:
+                                    return ip
+                elif isinstance(interfaces, list):
+                    for iface in interfaces:
+                        if isinstance(iface, dict):
+                            iface_name = str(iface.get('name', '')).lower()
+                            if 'wan' in iface_name or 'pppoe' in iface_name:
+                                ip = iface.get('ip') or iface.get('ip_addr') or iface.get('ipv4') or iface.get('address')
+                                if ip:
+                                    return ip
             return None
         except (KeyError, TypeError):
             return None
@@ -444,20 +454,30 @@ class WanIpv6Sensor(IkuaiSensor):
             system = self.coordinator.data.get("system", {})
             if not system:
                 return None
-            # 尝试多个可能的字段名
-            for field in ['wan_ipv6', 'ipv6_addr', 'wan_ipv6_addr', 'ip6_addr', 'public_ipv6']:
+            # 只使用 coordinator 中处理的 wan_ipv6（已过滤内网 IP）
+            for field in ['wan_ipv6', 'wan_ipv6_addr', 'public_ipv6']:
                 value = system.get(field)
                 if value:
                     return value
-            # 检查网络接口信息
-            if 'interfaces' in system:
-                for iface in system['interfaces']:
-                    if isinstance(iface, dict):
-                        name = iface.get('name', '').lower()
-                        if 'wan' in name or 'pppoe' in name:
-                            ipv6 = iface.get('ipv6') or iface.get('ip6_addr')
-                            if ipv6:
-                                return ipv6
+            # 检查网络接口信息（带 wan/pppoe 标识）
+            if '_interfaces' in system:
+                interfaces = system['_interfaces']
+                if isinstance(interfaces, dict):
+                    for name, iface in interfaces.items():
+                        if isinstance(iface, dict):
+                            iface_name = (str(name) + " " + str(iface.get('name', ''))).lower()
+                            if 'wan' in iface_name or 'pppoe' in iface_name:
+                                ipv6 = iface.get('ipv6') or iface.get('ip6_addr') or iface.get('ipv6_addr') or iface.get('address6')
+                                if ipv6:
+                                    return ipv6
+                elif isinstance(interfaces, list):
+                    for iface in interfaces:
+                        if isinstance(iface, dict):
+                            iface_name = str(iface.get('name', '')).lower()
+                            if 'wan' in iface_name or 'pppoe' in iface_name:
+                                ipv6 = iface.get('ipv6') or iface.get('ip6_addr') or iface.get('ipv6_addr') or iface.get('address6')
+                                if ipv6:
+                                    return ipv6
             return None
         except (KeyError, TypeError):
             return None
@@ -534,20 +554,13 @@ class OnlineApSensor(IkuaiSensor):
                 value = system.get(field)
                 if value is not None:
                     return value
-            # 检查无线信息
-            if 'wireless' in system:
-                wireless = system['wireless']
+            # 检查无线信息（coordinator 已处理）
+            if '_wireless' in system:
+                wireless = system['_wireless']
                 if isinstance(wireless, dict):
-                    ap_count = wireless.get('ap_count') or wireless.get('ap_online')
+                    ap_count = wireless.get('ap_count') or wireless.get('ap_online') or wireless.get('total_ap')
                     if ap_count is not None:
                         return ap_count
-            # 检查AP信息
-            if 'ap_info' in system:
-                ap_info = system['ap_info']
-                if isinstance(ap_info, list):
-                    return len(ap_info)
-                elif isinstance(ap_info, dict):
-                    return ap_info.get('count', 0)
             return None
         except (KeyError, TypeError):
             return None
